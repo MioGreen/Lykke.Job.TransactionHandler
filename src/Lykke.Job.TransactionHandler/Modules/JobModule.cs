@@ -1,0 +1,256 @@
+﻿using System;
+using Autofac;
+using Autofac.Extensions.DependencyInjection;
+using AzureStorage.Queue;
+using AzureStorage.Tables;
+using AzureStorage.Tables.Templates.Index;
+using Common.Log;
+using LkeServices.Generated.EthereumCoreApi;
+using Lykke.Job.TransactionHandler.AzureRepositories.Assets;
+using Lykke.Job.TransactionHandler.AzureRepositories.BitCoin;
+using Lykke.Job.TransactionHandler.AzureRepositories.Blockchain;
+using Lykke.Job.TransactionHandler.AzureRepositories.CashOperations;
+using Lykke.Job.TransactionHandler.AzureRepositories.ChronoBank;
+using Lykke.Job.TransactionHandler.AzureRepositories.Clients;
+using Lykke.Job.TransactionHandler.AzureRepositories.Etherium;
+using Lykke.Job.TransactionHandler.AzureRepositories.Exchange;
+using Lykke.Job.TransactionHandler.AzureRepositories.MarginTrading;
+using Lykke.Job.TransactionHandler.AzureRepositories.Messages.Email;
+using Lykke.Job.TransactionHandler.AzureRepositories.Offchain;
+using Lykke.Job.TransactionHandler.AzureRepositories.PaymentSystems;
+using Lykke.Job.TransactionHandler.AzureRepositories.Quanta;
+using Lykke.Job.TransactionHandler.AzureRepositories.SolarCoin;
+using Lykke.Job.TransactionHandler.Core;
+using Lykke.Job.TransactionHandler.Core.Domain.Assets;
+using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
+using Lykke.Job.TransactionHandler.Core.Domain.Blockchain;
+using Lykke.Job.TransactionHandler.Core.Domain.CashOperations;
+using Lykke.Job.TransactionHandler.Core.Domain.ChronoBank;
+using Lykke.Job.TransactionHandler.Core.Domain.Clients;
+using Lykke.Job.TransactionHandler.Core.Domain.Clients.Core.Clients;
+using Lykke.Job.TransactionHandler.Core.Domain.Etherium;
+using Lykke.Job.TransactionHandler.Core.Domain.Exchange;
+using Lykke.Job.TransactionHandler.Core.Domain.MarginTrading;
+using Lykke.Job.TransactionHandler.Core.Domain.Messages.Email;
+using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
+using Lykke.Job.TransactionHandler.Core.Domain.PaymentSystems;
+using Lykke.Job.TransactionHandler.Core.Domain.Quanta;
+using Lykke.Job.TransactionHandler.Core.Domain.SolarCoin;
+using Lykke.Job.TransactionHandler.Core.Services;
+using Lykke.Job.TransactionHandler.Core.Services.AppNotifications;
+using Lykke.Job.TransactionHandler.Core.Services.BitCoin.BitCoinApi;
+using Lykke.Job.TransactionHandler.Core.Services.ChronoBank;
+using Lykke.Job.TransactionHandler.Core.Services.Etherium;
+using Lykke.Job.TransactionHandler.Core.Services.MarginTrading;
+using Lykke.Job.TransactionHandler.Core.Services.Offchain;
+using Lykke.Job.TransactionHandler.Core.Services.Quanta;
+using Lykke.Job.TransactionHandler.Core.Services.SolarCoin;
+using Lykke.Job.TransactionHandler.Queues;
+using Lykke.Job.TransactionHandler.Services;
+using Lykke.Job.TransactionHandler.Services.BitCoin.BitCoinApiClient;
+using Lykke.Job.TransactionHandler.Services.ChronoBank;
+using Lykke.Job.TransactionHandler.Services.Etherium;
+using Lykke.Job.TransactionHandler.Services.Http;
+using Lykke.Job.TransactionHandler.Services.MarginTrading;
+using Lykke.Job.TransactionHandler.Services.Notifications;
+using Lykke.Job.TransactionHandler.Services.Offchain;
+using Lykke.Job.TransactionHandler.Services.Quanta;
+using Lykke.Job.TransactionHandler.Services.SolarCoin;
+using Lykke.Service.ExchangeOperations.Client;
+using Lykke.Service.ExchangeOperations.Contracts;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Lykke.Job.TransactionHandler.Modules
+{
+    public class JobModule : Module
+    {
+        private readonly AppSettings.TransactionHandlerSettings _settings;
+        private readonly ILog _log;
+        private readonly AppSettings.DbSettings _dbSettings;
+        // NOTE: you can remove it if you don't need to use IServiceCollection extensions to register service specific dependencies
+        private readonly IServiceCollection _services;
+
+        public JobModule(AppSettings.TransactionHandlerSettings settings, ILog log)
+        {
+            _settings = settings;
+            _dbSettings = settings.Db;
+            _log = log;
+
+            _services = new ServiceCollection();
+        }
+
+        protected override void Load(ContainerBuilder builder)
+        {
+            builder.RegisterInstance(_settings)
+                .SingleInstance();
+
+            builder.RegisterInstance(_log)
+                .As<ILog>()
+                .SingleInstance();
+
+            builder.RegisterType<HealthService>()
+                .As<IHealthService>()
+                .SingleInstance()
+                .WithParameter(TypedParameter.From(TimeSpan.FromSeconds(30)));
+
+            // NOTE: You can implement your own poison queue notifier. See https://github.com/LykkeCity/JobTriggers/blob/master/readme.md
+            // builder.Register<PoisionQueueNotifierImplementation>().As<IPoisionQueueNotifier>();
+
+            BindRabbitMq(builder);
+            BindRepositories(builder);
+            BindServices(builder);
+
+            builder.Populate(_services);
+        }
+
+        private void BindServices(ContainerBuilder builder)
+        {
+            builder.RegisterType<HttpRequestClient>().SingleInstance();
+            builder.RegisterType<BitcoinApiClient>().As<IBitcoinApiClient>().SingleInstance();
+            builder.RegisterType<OffchainRequestService>().As<IOffchainRequestService>();
+            builder.RegisterType<SrvSlackNotifications>().SingleInstance();
+
+            var exchangeOperationsService = new ExchangeOperationsServiceClient(_settings.ExchangeOperationsServiceUrl);
+            builder.RegisterInstance(exchangeOperationsService).As<IExchangeOperationsService>().SingleInstance();
+
+            builder.Register<IAppNotifications>(x => new SrvAppNotifications(
+                _settings.Notifications.HubConnectionString, 
+                _settings.Notifications.HubName));
+            
+            builder.RegisterInstance(new ChronoBankServiceSettings { BaseUri = new Uri(_settings.ChronoBankSettings.ApiUrl) });
+            builder.RegisterType<ChronoBankService>().As<IChronoBankService>().SingleInstance();
+            
+            builder.RegisterType<SrvSolarCoinHelper>().As<ISrvSolarCoinHelper>().SingleInstance();
+            
+            builder.RegisterInstance(new QuantaServiceSettings { BaseUri = new Uri(_settings.QuantaSettings.ApiUrl) });
+            builder.RegisterType<QuantaService>().As<IQuantaService>().SingleInstance();
+            
+            builder.Register<IEthereumApi>(x =>
+            {
+                var api = new EthereumApi(new Uri(_settings.EthereumSettings.EthereumCoreUrl));
+                api.SetRetryPolicy(null);
+                return api;
+            }).SingleInstance();
+
+            builder.RegisterType<SrvEthereumHelper>().As<ISrvEthereumHelper>().SingleInstance();
+            
+            builder.RegisterInstance(_settings.MarginSettings);
+            builder.RegisterType<MarginDataServiceResolver>().As<IMarginDataServiceResolver>().SingleInstance();
+        }
+
+        private void BindRepositories(ContainerBuilder builder)
+        {
+            builder.RegisterInstance<IAssetSettingRepository>(
+                new AssetSettingRepository(
+                    new AzureTableStorage<AssetSettingEntity>(_dbSettings.DictsConnString, "AssetSettings", _log)));
+
+            builder.RegisterInstance<IBitcoinCommandSender>(
+                new BitcoinCommandSender(
+                    new AzureQueueExt(_dbSettings.BitCoinQueueConnectionString, "intransactions")));
+
+            builder.RegisterInstance<IBitCoinTransactionsRepository>(
+                new BitCoinTransactionsRepository(
+                    new AzureTableStorage<BitCoinTransactionEntity>(_dbSettings.BitCoinQueueConnectionString, "BitCoinTransactions", _log)));
+
+            builder.RegisterInstance<IWalletCredentialsRepository>(
+                new WalletCredentialsRepository(
+                    new AzureTableStorage<WalletCredentialsEntity>(_dbSettings.ClientPersonalInfoConnString, "WalletCredentials", _log)));
+
+            builder.RegisterInstance<IBcnClientCredentialsRepository>(
+                new BcnClientCredentialsRepository(
+                    new AzureTableStorage<BcnCredentialsRecordEntity>(_dbSettings.ClientPersonalInfoConnString, "BcnClientCredentials", _log)));
+
+            builder.RegisterInstance<ICashOperationsRepository>(
+                new CashOperationsRepository(
+                    new AzureTableStorage<CashInOutOperationEntity>(_dbSettings.ClientPersonalInfoConnString, "OperationsCash", _log),
+                    new AzureTableStorage<AzureIndex>(_dbSettings.ClientPersonalInfoConnString, "OperationsCash", _log)));
+
+            builder.RegisterInstance<ICashOutAttemptRepository>(
+                new CashOutAttemptRepository(
+                    new AzureTableStorage<CashOutAttemptEntity>(_dbSettings.BalancesInfoConnString, "CashOutAttempt", _log)));
+            
+            builder.RegisterInstance<IClientTradesRepository>(
+                new ClientTradesRepository(
+                    new AzureTableStorage<ClientTradeEntity>(_dbSettings.HTradesConnString, "Trades", _log)));
+
+            builder.RegisterInstance<IForwardWithdrawalRepository>(
+                new ForwardWithdrawalRepository(
+                    new AzureTableStorage<ForwardWithdrawalEntity>(_dbSettings.BalancesInfoConnString, "ForwardWithdrawal", _log)));
+
+            builder.RegisterInstance<ITransferEventsRepository>(
+                new TransferEventsRepository(
+                    new AzureTableStorage<TransferEventEntity>(_dbSettings.ClientPersonalInfoConnString, "Transfers", _log),
+                    new AzureTableStorage<AzureIndex>(_dbSettings.ClientPersonalInfoConnString, "Transfers", _log)));
+
+            builder.RegisterInstance<IChronoBankCommandProducer>(
+                new SrvChronoBankCommandProducer(new AzureQueueExt(_dbSettings.ChronoBankSrvConnString, "chronobank-out")));
+
+            builder.RegisterInstance<IClientAccountsRepository>(
+                new ClientsRepository(
+                    new AzureTableStorage<ClientAccountEntity>(_dbSettings.ClientPersonalInfoConnString, "Traders", _log)));
+
+            builder.RegisterInstance<IClientSettingsRepository>(
+                new ClientSettingsRepository(
+                    new AzureTableStorage<ClientSettingsEntity>(_dbSettings.ClientPersonalInfoConnString, "TraderSettings", _log)));
+
+            builder.RegisterInstance<IPersonalDataRepository>(
+                new PersonalDataRepository(
+                    new AzureTableStorage<PersonalDataEntity>(_dbSettings.ClientPersonalInfoConnString, "PersonalData", _log)));
+
+            builder.RegisterInstance<IEthClientEventLogs>(
+                new EthClientEventLogs(
+                    new AzureTableStorage<EthClientEventRecord>(_dbSettings.LwEthLogsConnString, "EthClientEventLogs", _log)));
+
+            builder.RegisterInstance<IEthereumTransactionRequestRepository>(
+                new EthereumTransactionRequestRepository(
+                    new AzureTableStorage<EthereumTransactionReqEntity>(_dbSettings.BitCoinQueueConnectionString, "EthereumTxRequest", _log)));
+
+            builder.RegisterInstance<IMarketOrdersRepository>(
+                new MarketOrdersRepository(new AzureTableStorage<MarketOrderEntity>(_dbSettings.HMarketOrdersConnString, "MarketOrders", _log)));
+
+            builder.RegisterInstance<IMarginTradingPaymentLogRepository>(
+                new MarginTradingPaymentLogRepository(
+                    new AzureTableStorage<MarginTradingPaymentLogEntity>(_dbSettings.LogsConnString, "MarginTradingPaymentsLog", _log)));
+
+            builder.RegisterInstance<IEmailCommandProducer>(
+                new EmailCommandProducer(new AzureQueueExt(_dbSettings.ClientPersonalInfoConnString, "emailsqueue")));
+
+            builder.RegisterInstance<IOffchainIgnoreRepository>(
+                new OffchainIgnoreRepository(
+                    new AzureTableStorage<OffchainIgnoreEntity>(_dbSettings.OffchainConnString, "OffchainClientsIgnore", _log)));
+
+            builder.RegisterInstance<IOffchainOrdersRepository>(
+                new OffchainOrderRepository(
+                    new AzureTableStorage<OffchainOrder>(_dbSettings.OffchainConnString, "OffchainOrders", _log)));
+
+            builder.RegisterInstance<IOffchainRequestRepository>(
+                new OffchainRequestRepository(
+                    new AzureTableStorage<OffchainRequestEntity>(_dbSettings.OffchainConnString, "OffchainRequests", _log)));
+
+            builder.RegisterInstance<IOffchainTransferRepository>(
+                new OffchainTransferRepository(
+                    new AzureTableStorage<OffchainTransferEntity>(_dbSettings.OffchainConnString, "OffchainTransfers", _log)));
+
+            builder.RegisterInstance<IPaymentTransactionsRepository>(
+                new PaymentTransactionsRepository(
+                    new AzureTableStorage<PaymentTransactionEntity>(_dbSettings.ClientPersonalInfoConnString, "PaymentTransactions", _log),
+                    new AzureTableStorage<AzureMultiIndex>(_dbSettings.ClientPersonalInfoConnString, "PaymentTransactions", _log)));
+
+            builder.RegisterInstance<IQuantaCommandProducer>(
+                new SrvQuantaCommandProducer(new AzureQueueExt(_dbSettings.QuantaSrvConnString, "quanta-out")));
+
+            builder.RegisterInstance<ISrvSolarCoinCommandProducer>(
+                new SrvSolarCoinCommandProducer(new AzureQueueExt(_dbSettings.SolarCoinConnString, "solar-out")));
+        }
+
+        private void BindRabbitMq(ContainerBuilder builder)
+        {
+            builder.RegisterInstance(_settings.MatchingEngine.RabbitMq);
+            builder.RegisterType<CashInOutQueue>().SingleInstance().AutoActivate();
+            builder.RegisterType<TransferQueue>().SingleInstance().AutoActivate();
+            builder.RegisterType<SwapQueue>().SingleInstance().AutoActivate();
+            builder.RegisterType<TradeQueue>().SingleInstance().AutoActivate();
+            builder.RegisterType<EthereumEventsQueue>().SingleInstance().AutoActivate();
+        }
+    }
+}
