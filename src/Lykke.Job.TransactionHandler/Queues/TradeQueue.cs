@@ -44,11 +44,11 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IOffchainIgnoreRepository _offchainIgnoreRepository;
         private readonly IEthereumTransactionRequestRepository _ethereumTransactionRequestRepository;
         private readonly ISrvEthereumHelper _srvEthereumHelper;
-        private readonly CachedDataDictionary<string, IAsset> _assetsDict;
         private readonly IBcnClientCredentialsRepository _bcnClientCredentialsRepository;
         private readonly AppSettings.TransactionHandlerSettings _baseSettings;
         private readonly IEthClientEventLogs _ethClientEventLogs;
         private readonly ILog _log;
+        private ICachedAssetsService _assetsService;
 
         public TradeQueue(AppSettings.RabbitMqSettings config, ILog log,
             IBitcoinCommandSender bitcoinCommandSender,
@@ -58,7 +58,8 @@ namespace Lykke.Job.TransactionHandler.Queues
             IClientTradesRepository clientTradesRepository, IOffchainRequestService offchainRequestService,
             IOffchainOrdersRepository offchainOrdersRepository, IOffchainTransferRepository offchainTransferRepository,
             IOffchainIgnoreRepository offchainIgnoreRepository, IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
-            ISrvEthereumHelper srvEthereumHelper, CachedDataDictionary<string, IAsset> assetsDict,
+            ISrvEthereumHelper srvEthereumHelper, 
+            ICachedAssetsService assetsService,
             IBcnClientCredentialsRepository bcnClientCredentialsRepository, AppSettings.TransactionHandlerSettings baseSettings,
             IEthClientEventLogs ethClientEventLogs)
             : base(config.ExternalHost, config.Port,
@@ -76,7 +77,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             _offchainIgnoreRepository = offchainIgnoreRepository;
             _ethereumTransactionRequestRepository = ethereumTransactionRequestRepository;
             _srvEthereumHelper = srvEthereumHelper;
-            _assetsDict = assetsDict;
+            _assetsService = assetsService;
             _bcnClientCredentialsRepository = bcnClientCredentialsRepository;
             _baseSettings = baseSettings;
             _ethClientEventLogs = ethClientEventLogs;
@@ -155,7 +156,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             var walletCredsMarket = await _walletCredentialsRepository.GetAsync(queueMessage.Trades[0].MarketClientId);
             var walletCredsLimit = await _walletCredentialsRepository.GetAsync(queueMessage.Trades[0].LimitClientId);
 
-            var clientTrades = queueMessage.ToDomainOffchain(walletCredsMarket, walletCredsLimit, (await _assetsDict.Values()).ToArray());
+            var clientTrades = queueMessage.ToDomainOffchain(walletCredsMarket, walletCredsLimit, await _assetsService.GetAllAssetsAsync());
 
             var operations = AggregateSwaps(queueMessage.Trades);
 
@@ -183,7 +184,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                         continue;
                     }
 
-                    var asset = await _assetsDict.GetItemAsync(operation.AssetId);
+                    var asset = await _assetsService.TryGetAssetAsync(operation.AssetId);
                     if (asset.Blockchain == Blockchain.Ethereum)
                         continue;   //guarantee transfer already sent for eth
 
@@ -216,7 +217,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                         continue;
                     }
 
-                    var asset = await _assetsDict.GetItemAsync(operation.AssetId);
+                    var asset = await _assetsService.TryGetAssetAsync(operation.AssetId);
                     if (asset.Blockchain == Blockchain.Ethereum)
                     {
                         await ProcessEthBuy(operation, asset, clientTrades, offchainOrder.OrderId);
@@ -289,7 +290,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private async Task<bool> ProcessEthGuaranteeTransfer(IEthereumTransactionRequest ethereumTxRequest, List<AggregatedTransfer> operations, IClientTrade[] clientTrades)
         {
             string errMsg = string.Empty;
-            IAsset asset = await _assetsDict.GetItemAsync(ethereumTxRequest.AssetId);
+            IAsset asset = await _assetsService.TryGetAssetAsync(ethereumTxRequest.AssetId);
             try
             {
                 var fromAddress = await _bcnClientCredentialsRepository.GetClientAddress(ethereumTxRequest.ClientId);

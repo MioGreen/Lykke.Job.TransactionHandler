@@ -167,7 +167,7 @@ namespace Lykke.Job.TransactionHandler.Queues.Models
         }
 
         public static IClientTrade[] ToDomainOffchain(this TradeQueueItem item, IWalletCredentials walletCredentialsMarket, IWalletCredentials walletCredentialsLimit,
-            IAsset[] assets)
+            IReadOnlyCollection<IAsset> assets)
         {
             var trade = item.Trades[0];
 

@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Net;
 
 namespace Lykke.Job.TransactionHandler.Core
@@ -7,19 +8,21 @@ namespace Lykke.Job.TransactionHandler.Core
     {
         public TransactionHandlerSettings TransactionHandlerJob { get; set; }
         public SlackNotificationsSettings SlackNotifications { get; set; }
+        public SlackIntegrationSettings SlackIntegration { get; set; }
+        public AssetsSettings Assets { get; set; }
 
         public class TransactionHandlerSettings
         {
             public DbSettings Db { get; set; }
             public EthereumSettings EthereumSettings { get; set; }
-            public SlackIntegrationSettings SlackIntegration { get; set; }
             public BitcoinCoreSettings BitCoinCore { get; set; }
             public SolarCoinSettings SolarCoin { get; set; }
             public MarginSettings MarginSettings { get; set; }
-            public MatchingEngineSettings MatchingEngine { get; set; }
+            public MatchingOrdersSettings MatchingEngine { get; set; }
             public NotificationsSettings Notifications { get; set; }
             public ChronoBankSettings ChronoBankSettings { get; set; }
             public QuantaSettings QuantaSettings { get; set; }
+            public AssetsCacheSettings AssetsCache { get; set; }
             public string ExchangeOperationsServiceUrl { get; set; }
         }
 
@@ -37,6 +40,11 @@ namespace Lykke.Job.TransactionHandler.Core
             public string OffchainConnString { get; set; }
             public string QuantaSrvConnString { get; set; }
             public string SolarCoinConnString { get; set; }
+        }
+
+        public class AssetsCacheSettings
+        {
+            public TimeSpan ExpirationPeriod { get; set; }
         }
 
         public class QuantaSettings
@@ -60,7 +68,7 @@ namespace Lykke.Job.TransactionHandler.Core
             public string GetAddressUrl { get; set; }
         }
 
-        public class MatchingEngineSettings
+        public class MatchingOrdersSettings
         {
             public IpEndpointSettings IpEndpoint { get; set; }
 
@@ -195,6 +203,11 @@ namespace Lykke.Job.TransactionHandler.Core
             public string ConnectionString { get; set; }
 
             public string QueueName { get; set; }
+        }
+
+        public class AssetsSettings
+        {
+            public string ServiceUrl { get; set; }
         }
     }
 }

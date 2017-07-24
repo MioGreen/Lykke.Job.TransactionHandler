@@ -4,10 +4,7 @@
 
 namespace LkeServices.Generated.EthereumCoreApi.Models
 {
-    using LkeServices.Generated;
-    using LkeServices.Generated.EthereumCoreApi;
     using Newtonsoft.Json;
-    using System.Linq;
 
     public partial class ApiException
     {

@@ -4,11 +4,8 @@
 
 namespace LkeServices.Generated.EthereumCoreApi.Models
 {
-    using LkeServices.Generated;
-    using LkeServices.Generated.EthereumCoreApi;
     using Microsoft.Rest;
     using Newtonsoft.Json;
-    using System.Linq;
 
     public partial class CheckPendingModel
     {

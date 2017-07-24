@@ -4,8 +4,6 @@
 
 namespace LkeServices.Generated.ChronoBankApi
 {
-    using Models;
-
     /// <summary>
     /// </summary>
     public partial interface IChronobankApiClient : System.IDisposable

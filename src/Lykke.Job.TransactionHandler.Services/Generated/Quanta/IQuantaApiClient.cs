@@ -4,8 +4,6 @@
 
 namespace LkeServices.Generated.QuantaApi
 {
-    using Models;
-
     /// <summary>
     /// </summary>
     public partial interface IQuantaApiClient : System.IDisposable

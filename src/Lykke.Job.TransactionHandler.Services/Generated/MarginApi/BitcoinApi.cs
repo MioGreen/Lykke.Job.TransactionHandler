@@ -4,7 +4,6 @@
 
 namespace LkeServices.Generated.MarginApi
 {
-    using Microsoft.Rest;
     using Models;
 
     public partial class BitcoinApi : Microsoft.Rest.ServiceClient<BitcoinApi>, IBitcoinApi

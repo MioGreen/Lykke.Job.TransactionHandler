@@ -27,7 +27,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IWalletCredentialsRepository _walletCredentialsRepository;
         private readonly IBitCoinTransactionsRepository _bitcoinTransactionsRepository;
         private readonly IForwardWithdrawalRepository _forwardWithdrawalRepository;
-        private readonly CachedDataDictionary<string, IAsset> _assetsDict;
+        private readonly ICachedAssetsService _assetsService;
         private readonly IOffchainRequestService _offchainRequestService;
         private readonly IClientSettingsRepository _clientSettingsRepository;
         private readonly IEthereumTransactionRequestRepository _ethereumTransactionRequestRepository;
@@ -41,7 +41,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             IWalletCredentialsRepository walletCredentialsRepository,
             IBitCoinTransactionsRepository bitcoinTransactionsRepository,
             IForwardWithdrawalRepository forwardWithdrawalRepository,
-            CachedDataDictionary<string, IAsset> assetsDict,
+            ICachedAssetsService assetsService,
             IOffchainRequestService offchainRequestService,
             IClientSettingsRepository clientSettingsRepository,
             IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
@@ -57,7 +57,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             _walletCredentialsRepository = walletCredentialsRepository;
             _bitcoinTransactionsRepository = bitcoinTransactionsRepository;
             _forwardWithdrawalRepository = forwardWithdrawalRepository;
-            _assetsDict = assetsDict;
+            _assetsService = assetsService;
             _offchainRequestService = offchainRequestService;
             _clientSettingsRepository = clientSettingsRepository;
             _ethereumTransactionRequestRepository = ethereumTransactionRequestRepository;
@@ -153,7 +153,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             var amount = msg.Amount.ParseAnyDouble();
             var context = transaction.GetContextData<CashOutContextData>();
 
-            var asset = await _assetsDict.GetItemAsync(msg.AssetId);
+            var asset = await _assetsService.TryGetAssetAsync(msg.AssetId);
 
             var isOffchainClient = await _clientSettingsRepository.IsOffchainClient(msg.ClientId);
             var isBtcOffchainClient = isOffchainClient && asset.Blockchain == Blockchain.Bitcoin;
@@ -161,7 +161,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             bool isForwardWithdawal = context.AddData?.ForwardWithdrawal != null;
             if (isForwardWithdawal)
             {
-                var baseAsset = await _assetsDict.GetItemAsync(asset.ForwardBaseAsset);
+                var baseAsset = await _assetsService.TryGetAssetAsync(asset.ForwardBaseAsset);
 
                 var forwardCashInId = await _cashOperationsRepository
                     .RegisterAsync(new CashInOutOperation
@@ -312,7 +312,7 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         private async Task<bool> ProcessExternalCashin(CashInOutQueueMessage msg)
         {
-            var asset = await _assetsDict.GetItemAsync(msg.AssetId);
+            var asset = await _assetsService.TryGetAssetAsync(msg.AssetId);
             if (!await _clientSettingsRepository.IsOffchainClient(msg.ClientId) || asset.Blockchain != Blockchain.Bitcoin)
                 return true;
 

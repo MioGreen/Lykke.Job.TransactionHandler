@@ -4,8 +4,6 @@
 
 namespace LkeServices.Generated.QuantaApi.Models
 {
-    using System.Linq;
-
     public partial class ApiError
     {
         /// <summary>

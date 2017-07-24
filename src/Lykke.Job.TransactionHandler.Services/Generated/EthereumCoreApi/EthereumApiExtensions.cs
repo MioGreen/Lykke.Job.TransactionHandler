@@ -4,7 +4,6 @@
 
 namespace LkeServices.Generated.EthereumCoreApi
 {
-    using LkeServices.Generated;
     using Models;
     using System.Threading;
     using System.Threading.Tasks;

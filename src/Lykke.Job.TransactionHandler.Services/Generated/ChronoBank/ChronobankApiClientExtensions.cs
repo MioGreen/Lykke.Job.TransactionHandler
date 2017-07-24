@@ -5,7 +5,6 @@
 namespace LkeServices.Generated.ChronoBankApi
 {
     using System.Threading.Tasks;
-   using Models;
 
     /// <summary>
     /// Extension methods for ChronobankApiClient.

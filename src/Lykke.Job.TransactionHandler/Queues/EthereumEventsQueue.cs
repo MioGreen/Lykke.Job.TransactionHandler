@@ -27,24 +27,24 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly ICashOperationsRepository _cashOperationsRepository;
         private readonly IClientAccountsRepository _clientAccountsRepository;
         private readonly ISrvEmailsFacade _srvEmailsFacade;
-        private readonly CachedDataDictionary<string, IAsset> _assetsDict;
         private readonly IBcnClientCredentialsRepository _bcnClientCredentialsRepository;
         private readonly IPaymentTransactionsRepository _paymentTransactionsRepository;
         private readonly IWalletCredentialsRepository _walletCredentialsRepository;
         private readonly IClientTradesRepository _clientTradesRepository;
         private readonly IEthereumTransactionRequestRepository _ethereumTransactionRequestRepository;
+        private readonly ICachedAssetsService _assetsService;
 
         public EthereumEventsQueue(AppSettings.RabbitMqSettings config, ILog log,
             IMatchingEngineConnector matchingEngineConnector,
             ICashOperationsRepository cashOperationsRepository,
             IClientAccountsRepository clientAccountsRepository,
             ISrvEmailsFacade srvEmailsFacade,
-            CachedDataDictionary<string, IAsset> assetsDict,
             IBcnClientCredentialsRepository bcnClientCredentialsRepository,
             IPaymentTransactionsRepository paymentTransactionsRepository,
             IWalletCredentialsRepository walletCredentialsRepository,
             IClientTradesRepository clientTradesRepository,
-            IEthereumTransactionRequestRepository ethereumTransactionRequestRepository)
+            IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
+            ICachedAssetsService assetsService)
             : base(config.ExternalHost, config.Port,
                   config.ExchangeEthereumCashIn, "lykke.transactionhandler.ethereum.events",
                   config.Username, config.Password, log)
@@ -54,12 +54,12 @@ namespace Lykke.Job.TransactionHandler.Queues
             _cashOperationsRepository = cashOperationsRepository;
             _clientAccountsRepository = clientAccountsRepository;
             _srvEmailsFacade = srvEmailsFacade;
-            _assetsDict = assetsDict;
             _bcnClientCredentialsRepository = bcnClientCredentialsRepository;
             _paymentTransactionsRepository = paymentTransactionsRepository;
             _walletCredentialsRepository = walletCredentialsRepository;
             _clientTradesRepository = clientTradesRepository;
             _ethereumTransactionRequestRepository = ethereumTransactionRequestRepository;
+            _assetsService = assetsService;
         }
 
         public override async Task<bool> ProcessMessage(string message)
@@ -123,7 +123,7 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             var bcnCreds = await _bcnClientCredentialsRepository.GetByAssetAddressAsync(queueMessage.FromAddress);
 
-            var asset = await _assetsDict.GetItemAsync(bcnCreds.AssetId);
+            var asset = await _assetsService.TryGetAssetAsync(bcnCreds.AssetId);
             var amount = EthServiceHelpers.ConvertFromContract(queueMessage.Amount, asset.MultiplierPower, asset.Accuracy);
 
             await HandleCashInOperation(asset, (double) amount, bcnCreds.ClientId, bcnCreds.Address,

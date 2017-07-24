@@ -42,9 +42,9 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
         private readonly IBitcoinApiClient _bitcoinApiClient;
         private readonly IOffchainRequestRepository _offchainRequestRepository;
         private readonly CachedDataDictionary<string, IAssetSetting> _assetSettings;
-        private readonly CachedDataDictionary<string, IAsset> _assets;
         private readonly IPaymentTransactionsRepository _paymentTransactionsRepository;
         private readonly IAppNotifications _appNotifications;
+        private readonly ICachedAssetsService _assetsService;
 
         private readonly IMarginDataServiceResolver _marginDataServiceResolver;
         private readonly IMarginTradingPaymentLogRepository _marginTradingPaymentLog;
@@ -84,7 +84,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             IMarginTradingPaymentLogRepository marginTradingPaymentLog,
             IPaymentTransactionsRepository paymentTransactionsRepository,
             IAppNotifications appNotifications,
-            CachedDataDictionary<string, IAsset> assets)
+            ICachedAssetsService assetsService)
         {
             _bitCoinTransactionsRepository = bitCoinTransactionsRepository;
             _log = log;
@@ -111,7 +111,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             _marginTradingPaymentLog = marginTradingPaymentLog;
             _paymentTransactionsRepository = paymentTransactionsRepository;
             _appNotifications = appNotifications;
-            _assets = assets;
+            _assetsService = assetsService;
         }
 
         [QueueTrigger("offchain-finalization", notify: true, maxDequeueCount: 1, maxPollingIntervalMs: 100)]
@@ -242,7 +242,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
                 if (transfer.Actions?.PushNotification != null)
                 {
                     var clientAcc = await _clientAccountsRepository.GetByIdAsync(transfer.ClientId);
-                    var asset = await _assets.GetItemAsync(transfer.Actions.PushNotification.AssetId);
+                    var asset = await _assetsService.TryGetAssetAsync(transfer.Actions.PushNotification.AssetId);
 
                     await _appNotifications.SendAssetsCreditedNotification(new[] { clientAcc.NotificationsId },
                             transfer.Actions.PushNotification.Amount, transfer.Actions.PushNotification.AssetId,

@@ -4,8 +4,6 @@
 
 namespace LkeServices.Generated.ChronoBankApi.Models
 {
-    using System.Linq;
-
     public partial class RegisterResponse
     {
         /// <summary>

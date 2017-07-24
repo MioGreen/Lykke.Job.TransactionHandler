@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Linq;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using AzureStorage.Queue;
 using AzureStorage.Tables;
 using AzureStorage.Tables.Templates.Index;
+using Common;
 using Common.Log;
 using LkeServices.Generated.EthereumCoreApi;
 using Lykke.Job.TransactionHandler.AzureRepositories.Assets;
@@ -42,6 +44,8 @@ using Lykke.Job.TransactionHandler.Core.Services.BitCoin.BitCoinApi;
 using Lykke.Job.TransactionHandler.Core.Services.ChronoBank;
 using Lykke.Job.TransactionHandler.Core.Services.Etherium;
 using Lykke.Job.TransactionHandler.Core.Services.MarginTrading;
+using Lykke.Job.TransactionHandler.Core.Services.Messages.Email;
+using Lykke.Job.TransactionHandler.Core.Services.Messages.Email.Sender;
 using Lykke.Job.TransactionHandler.Core.Services.Offchain;
 using Lykke.Job.TransactionHandler.Core.Services.Quanta;
 using Lykke.Job.TransactionHandler.Core.Services.SolarCoin;
@@ -52,10 +56,13 @@ using Lykke.Job.TransactionHandler.Services.ChronoBank;
 using Lykke.Job.TransactionHandler.Services.Etherium;
 using Lykke.Job.TransactionHandler.Services.Http;
 using Lykke.Job.TransactionHandler.Services.MarginTrading;
+using Lykke.Job.TransactionHandler.Services.Messages.Email;
 using Lykke.Job.TransactionHandler.Services.Notifications;
 using Lykke.Job.TransactionHandler.Services.Offchain;
 using Lykke.Job.TransactionHandler.Services.Quanta;
 using Lykke.Job.TransactionHandler.Services.SolarCoin;
+using Lykke.MatchingEngine.Connector.Services;
+using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.ExchangeOperations.Client;
 using Lykke.Service.ExchangeOperations.Contracts;
 using Microsoft.Extensions.DependencyInjection;
@@ -64,16 +71,20 @@ namespace Lykke.Job.TransactionHandler.Modules
 {
     public class JobModule : Module
     {
-        private readonly AppSettings.TransactionHandlerSettings _settings;
-        private readonly ILog _log;
+        private readonly AppSettings _settings;
+        private AppSettings.TransactionHandlerSettings _jobSettings;
         private readonly AppSettings.DbSettings _dbSettings;
+        private readonly ILog _log;
         // NOTE: you can remove it if you don't need to use IServiceCollection extensions to register service specific dependencies
         private readonly IServiceCollection _services;
 
-        public JobModule(AppSettings.TransactionHandlerSettings settings, ILog log)
+        
+
+        public JobModule(AppSettings settings, ILog log)
         {
             _settings = settings;
-            _dbSettings = settings.Db;
+            _jobSettings = _settings.TransactionHandlerJob;
+            _dbSettings = settings.TransactionHandlerJob.Db;
             _log = log;
 
             _services = new ServiceCollection();
@@ -81,7 +92,7 @@ namespace Lykke.Job.TransactionHandler.Modules
 
         protected override void Load(ContainerBuilder builder)
         {
-            builder.RegisterInstance(_settings)
+            builder.RegisterInstance(_settings.TransactionHandlerJob)
                 .SingleInstance();
 
             builder.RegisterInstance(_log)
@@ -96,46 +107,87 @@ namespace Lykke.Job.TransactionHandler.Modules
             // NOTE: You can implement your own poison queue notifier. See https://github.com/LykkeCity/JobTriggers/blob/master/readme.md
             // builder.Register<PoisionQueueNotifierImplementation>().As<IPoisionQueueNotifier>();
 
+            _services.UseAssetsClient(new AssetServiceSettings
+            {
+               BaseUri = new Uri(_settings.Assets.ServiceUrl),
+               AssetPairsCacheExpirationPeriod = _jobSettings.AssetsCache.ExpirationPeriod,
+               AssetsCacheExpirationPeriod = _jobSettings.AssetsCache.ExpirationPeriod
+            });
+
             BindRabbitMq(builder);
+            BindMatchingEngineChannel(builder);
             BindRepositories(builder);
             BindServices(builder);
+            BindCachedDicts(builder);
 
             builder.Populate(_services);
+        }
+
+        public static void BindCachedDicts(ContainerBuilder builder)
+        {
+            builder.Register(x =>
+            {
+                var ctx = x.Resolve<IComponentContext>();
+                return new CachedDataDictionary<string, IAssetSetting>(
+                    async () => (await ctx.Resolve<IAssetSettingRepository>().GetAssetSettings()).ToDictionary(itm => itm.Asset));
+            }).SingleInstance();
+        }
+
+        private void BindMatchingEngineChannel(ContainerBuilder container)
+        {
+            var socketLog = new SocketLogDynamic(i => { },
+                str => Console.WriteLine(DateTime.UtcNow.ToIsoDateTime() + ": " + str));
+
+            container.BindMeConnector(_jobSettings.MatchingEngine.IpEndpoint.GetClientIpEndPoint(), socketLog);
         }
 
         private void BindServices(ContainerBuilder builder)
         {
             builder.RegisterType<HttpRequestClient>().SingleInstance();
-            builder.RegisterType<BitcoinApiClient>().As<IBitcoinApiClient>().SingleInstance();
+            builder.RegisterType<BitcoinApiClient>()
+                .As<IBitcoinApiClient>()
+                .SingleInstance()
+                .WithParameter(TypedParameter.From(_jobSettings.BitCoinCore));
             builder.RegisterType<OffchainRequestService>().As<IOffchainRequestService>();
-            builder.RegisterType<SrvSlackNotifications>().SingleInstance();
+            builder.RegisterType<SrvSlackNotifications>()
+                .SingleInstance()
+                .WithParameter(TypedParameter.From(_settings.SlackIntegration));
 
-            var exchangeOperationsService = new ExchangeOperationsServiceClient(_settings.ExchangeOperationsServiceUrl);
+            var exchangeOperationsService = new ExchangeOperationsServiceClient(_jobSettings.ExchangeOperationsServiceUrl);
             builder.RegisterInstance(exchangeOperationsService).As<IExchangeOperationsService>().SingleInstance();
 
             builder.Register<IAppNotifications>(x => new SrvAppNotifications(
-                _settings.Notifications.HubConnectionString, 
-                _settings.Notifications.HubName));
+                _jobSettings.Notifications.HubConnectionString,
+                _jobSettings.Notifications.HubName));
             
-            builder.RegisterInstance(new ChronoBankServiceSettings { BaseUri = new Uri(_settings.ChronoBankSettings.ApiUrl) });
+            builder.RegisterInstance(new ChronoBankServiceSettings { BaseUri = new Uri(_jobSettings.ChronoBankSettings.ApiUrl) });
             builder.RegisterType<ChronoBankService>().As<IChronoBankService>().SingleInstance();
+
+            builder.RegisterType<SrvSolarCoinHelper>()
+                .As<ISrvSolarCoinHelper>()
+                .SingleInstance()
+                .WithParameter(TypedParameter.From(_jobSettings.SolarCoin));
             
-            builder.RegisterType<SrvSolarCoinHelper>().As<ISrvSolarCoinHelper>().SingleInstance();
-            
-            builder.RegisterInstance(new QuantaServiceSettings { BaseUri = new Uri(_settings.QuantaSettings.ApiUrl) });
+            builder.RegisterInstance(new QuantaServiceSettings { BaseUri = new Uri(_jobSettings.QuantaSettings.ApiUrl) });
             builder.RegisterType<QuantaService>().As<IQuantaService>().SingleInstance();
             
             builder.Register<IEthereumApi>(x =>
             {
-                var api = new EthereumApi(new Uri(_settings.EthereumSettings.EthereumCoreUrl));
+                var api = new EthereumApi(new Uri(_jobSettings.EthereumSettings.EthereumCoreUrl));
                 api.SetRetryPolicy(null);
                 return api;
             }).SingleInstance();
 
             builder.RegisterType<SrvEthereumHelper>().As<ISrvEthereumHelper>().SingleInstance();
             
-            builder.RegisterInstance(_settings.MarginSettings);
-            builder.RegisterType<MarginDataServiceResolver>().As<IMarginDataServiceResolver>().SingleInstance();
+            builder.RegisterInstance(_jobSettings.MarginSettings);
+            builder.RegisterType<MarginDataServiceResolver>()
+                .As<IMarginDataServiceResolver>()
+                .SingleInstance()
+                .WithParameter(TypedParameter.From(_jobSettings.MarginSettings));
+
+            builder.RegisterType<EmailSender>().As<IEmailSender>().SingleInstance();
+            builder.RegisterType<SrvEmailsFacade>().As<ISrvEmailsFacade>().SingleInstance();
         }
 
         private void BindRepositories(ContainerBuilder builder)
@@ -245,7 +297,7 @@ namespace Lykke.Job.TransactionHandler.Modules
 
         private void BindRabbitMq(ContainerBuilder builder)
         {
-            builder.RegisterInstance(_settings.MatchingEngine.RabbitMq);
+            builder.RegisterInstance(_jobSettings.MatchingEngine.RabbitMq);
             builder.RegisterType<CashInOutQueue>().SingleInstance().AutoActivate();
             builder.RegisterType<TransferQueue>().SingleInstance().AutoActivate();
             builder.RegisterType<SwapQueue>().SingleInstance().AutoActivate();

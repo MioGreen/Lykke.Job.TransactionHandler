@@ -4,8 +4,6 @@
 
 namespace LkeServices.Generated.MarginApi.Models
 {
-    using System.Linq;
-
     public partial class MarginTradingAccountDto
     {
         /// <summary>

@@ -4,7 +4,6 @@
 
 namespace LkeServices.Generated.QuantaApi
 {
-    using Microsoft.Rest;
     using Models;
 
     public partial class QuantaApiClient : Microsoft.Rest.ServiceClient<QuantaApiClient>, IQuantaApiClient

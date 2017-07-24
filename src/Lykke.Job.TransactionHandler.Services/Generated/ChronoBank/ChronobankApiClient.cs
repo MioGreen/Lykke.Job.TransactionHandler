@@ -4,7 +4,6 @@
 
 namespace LkeServices.Generated.ChronoBankApi
 {
-    using Microsoft.Rest;
     using Models;
 
     public partial class ChronobankApiClient : Microsoft.Rest.ServiceClient<ChronobankApiClient>, IChronobankApiClient

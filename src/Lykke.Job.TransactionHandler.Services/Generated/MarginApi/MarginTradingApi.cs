@@ -4,7 +4,6 @@
 
 namespace LkeServices.Generated.MarginApi
 {
-    using Microsoft.Rest;
     using Models;
 
     public partial class MarginTradingApi : Microsoft.Rest.ServiceClient<MarginTradingApi>, IMarginTradingApi

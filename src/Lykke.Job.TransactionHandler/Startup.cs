@@ -57,7 +57,7 @@ namespace Lykke.Job.TransactionHandler
                 : HttpSettingsLoader.Load<AppSettings>(Configuration.GetValue<string>("SettingsUrl"));
             var log = CreateLogWithSlack(services, appSettings);
 
-            builder.RegisterModule(new JobModule(appSettings.TransactionHandlerJob, log));
+            builder.RegisterModule(new JobModule(appSettings, log));
 
             if (string.IsNullOrWhiteSpace(appSettings.TransactionHandlerJob.Db.BitCoinQueueConnectionString))
             {
