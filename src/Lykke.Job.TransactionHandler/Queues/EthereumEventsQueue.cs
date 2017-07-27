@@ -150,7 +150,7 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             var result = await _matchingEngineClient.CashInOutAsync(id, clientId, asset.Id, amount);
 
-            if (result.Status != MeStatusCodes.Ok)
+            if (result == null || result.Status != MeStatusCodes.Ok)
             {
                 await
                     _log.WriteWarningAsync(nameof(EthereumEventsQueue), nameof(HandleCashInOperation), "ME error",
