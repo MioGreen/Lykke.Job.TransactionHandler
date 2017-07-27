@@ -138,7 +138,7 @@ namespace Lykke.Job.TransactionHandler.Modules
             var socketLog = new SocketLogDynamic(i => { },
                 str => Console.WriteLine(DateTime.UtcNow.ToIsoDateTime() + ": " + str));
 
-            container.BindMeConnector(_jobSettings.MatchingEngine.IpEndpoint.GetClientIpEndPoint(), socketLog);
+            container.BindMeClient(_jobSettings.MatchingEngine.IpEndpoint.GetClientIpEndPoint(), socketLog);
         }
 
         private void BindServices(ContainerBuilder builder)

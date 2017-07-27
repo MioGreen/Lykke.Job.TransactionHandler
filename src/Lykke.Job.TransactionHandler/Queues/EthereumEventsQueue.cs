@@ -23,7 +23,7 @@ namespace Lykke.Job.TransactionHandler.Queues
     public class EthereumEventsQueue : RabbitQueue
     {
         private readonly ILog _log;
-        private readonly IMatchingEngineConnector _matchingEngineConnector;
+        private readonly IMatchingEngineClient _matchingEngineClient;
         private readonly ICashOperationsRepository _cashOperationsRepository;
         private readonly IClientAccountsRepository _clientAccountsRepository;
         private readonly ISrvEmailsFacade _srvEmailsFacade;
@@ -35,7 +35,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly ICachedAssetsService _assetsService;
 
         public EthereumEventsQueue(AppSettings.RabbitMqSettings config, ILog log,
-            IMatchingEngineConnector matchingEngineConnector,
+            IMatchingEngineClient matchingEngineClient,
             ICashOperationsRepository cashOperationsRepository,
             IClientAccountsRepository clientAccountsRepository,
             ISrvEmailsFacade srvEmailsFacade,
@@ -50,7 +50,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                   config.Username, config.Password, log)
         {
             _log = log;
-            _matchingEngineConnector = matchingEngineConnector;
+            _matchingEngineClient = matchingEngineClient;
             _cashOperationsRepository = cashOperationsRepository;
             _clientAccountsRepository = clientAccountsRepository;
             _srvEmailsFacade = srvEmailsFacade;
@@ -148,7 +148,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 return;
             }
 
-            var result = await _matchingEngineConnector.CashInOutAsync(id, clientId, asset.Id, amount);
+            var result = await _matchingEngineClient.CashInOutAsync(id, clientId, asset.Id, amount);
 
             if (result.Status != MeStatusCodes.Ok)
             {
