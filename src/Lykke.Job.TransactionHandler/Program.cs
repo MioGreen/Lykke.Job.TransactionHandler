@@ -12,6 +12,13 @@ namespace Lykke.Job.TransactionHandler
     {
         static void Main(string[] args)
         {
+#if DEBUG
+            Console.WriteLine("Starting... Is DEBUG");
+#else
+            Console.WriteLine("Starting... Is RELEASE");
+
+#endif
+
             var webHostCancellationTokenSource = new CancellationTokenSource();
             IWebHost webHost = null;
             TriggerHost triggerHost = null;
