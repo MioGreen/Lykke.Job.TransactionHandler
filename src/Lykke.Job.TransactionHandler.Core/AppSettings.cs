@@ -97,50 +97,10 @@ namespace Lykke.Job.TransactionHandler.Core
 
         public class MarginSettings
         {
-            public string MarginTradingWampHost { get; set; }
-            public string WampBackendUrl { get; set; }
             public string ApiKey { get; set; }
             public string DemoApiKey { get; set; }
-            public string ApiUrl { get; set; }
             public string ApiRootUrl { get; set; }
             public string DemoApiRootUrl { get; set; }
-            public string RpcToken { get; set; }
-            public bool RemoteConsoleEnabled { get; set; }
-            public bool AutoCreateAccounts { get; set; }
-            public Queues RabbitMqQueues { get; set; }
-            public RabbitMqConnectionSettings RabbitMqSettings { get; set; }
-            public RabbitMqConnectionSettings MarginTradingRabbitMqSettings { get; set; }
-            public EmailServiceBus EmailSettings { get; set; }
-            public string LogsConnectionString { get; set; }
-            public string MoneyTrasferClientId { get; set; }
-
-            public class Queues
-            {
-                public string AccountHistoryQueue { get; set; }
-                public string OrderHistoryQueue { get; set; }
-                public string OrderRejectedQueue { get; set; }
-                public string OrderbookPricesQueue { get; set; }
-                public string OrderChangedQueue { get; set; }
-                public string AccountChangedQueue { get; set; }
-                public string AccountStopoutQueue { get; set; }
-                public string UserUpdatesQueue { get; set; }
-            }
-        }
-
-        public class EmailServiceBus
-        {
-            public string Key { get; set; }
-            public string QueueName { get; set; }
-            public string NamespaceUrl { get; set; }
-            public string PolicyName { get; set; }
-        }
-
-        public class RabbitMqConnectionSettings
-        {
-            public string InternalConnectionString { get; set; }
-            public string ConnectionString { get; set; }
-            public string QueueName { get; set; }
-            public string ExchangeName { get; set; }
         }
 
         public class BitcoinCoreSettings
