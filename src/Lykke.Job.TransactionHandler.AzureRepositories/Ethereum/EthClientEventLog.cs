@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Threading.Tasks;
 using AzureStorage;
-using Lykke.Job.TransactionHandler.Core.Domain.Etherium;
+using Lykke.Job.TransactionHandler.Core.Domain.Ethereum;
 using Microsoft.WindowsAzure.Storage.Table;
 
-namespace Lykke.Job.TransactionHandler.AzureRepositories.Etherium
+namespace Lykke.Job.TransactionHandler.AzureRepositories.Ethereum
 {
     public class EthClientEventRecord : TableEntity
     {

@@ -2,18 +2,18 @@
 // Changes may cause incorrect behavior and will be lost if the code is
 // regenerated.
 
-namespace LkeServices.Generated.EthereumCoreApi
-{
-    using Microsoft.Rest;
-    using Microsoft.Rest.Serialization;
-    using Models;
-    using Newtonsoft.Json;
-    using System.Collections.Generic;
-    using System.Net;
-    using System.Net.Http;
-    using System.Threading;
-    using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Net;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+using Lykke.Job.TransactionHandler.Services.Generated.EthereumCoreApi.Models;
+using Microsoft.Rest;
+using Microsoft.Rest.Serialization;
+using Newtonsoft.Json;
 
+namespace Lykke.Job.TransactionHandler.Services.Generated.EthereumCoreApi
+{
     public partial class EthereumApi : ServiceClient<EthereumApi>, IEthereumApi
     {
         /// <summary>

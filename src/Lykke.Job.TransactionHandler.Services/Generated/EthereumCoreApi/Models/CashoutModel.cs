@@ -2,11 +2,11 @@
 // Changes may cause incorrect behavior and will be lost if the code is
 // regenerated.
 
-namespace LkeServices.Generated.EthereumCoreApi.Models
-{
-    using Microsoft.Rest;
-    using Newtonsoft.Json;
+using Microsoft.Rest;
+using Newtonsoft.Json;
 
+namespace Lykke.Job.TransactionHandler.Services.Generated.EthereumCoreApi.Models
+{
     public partial class CashoutModel
     {
         /// <summary>

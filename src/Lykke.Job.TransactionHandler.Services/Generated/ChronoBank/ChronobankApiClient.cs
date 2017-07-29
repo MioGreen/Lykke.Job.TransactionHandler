@@ -2,10 +2,10 @@
 // Changes may cause incorrect behavior and will be lost if the code is
 // regenerated.
 
-namespace LkeServices.Generated.ChronoBankApi
-{
-    using Models;
+using Lykke.Job.TransactionHandler.Services.Generated.ChronoBank.Models;
 
+namespace Lykke.Job.TransactionHandler.Services.Generated.ChronoBank
+{
     public partial class ChronobankApiClient : Microsoft.Rest.ServiceClient<ChronobankApiClient>, IChronobankApiClient
     {
         /// <summary>

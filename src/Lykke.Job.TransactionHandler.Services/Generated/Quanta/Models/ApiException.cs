@@ -2,7 +2,7 @@
 // Changes may cause incorrect behavior and will be lost if the code is
 // regenerated.
 
-namespace LkeServices.Generated.QuantaApi.Models
+namespace Lykke.Job.TransactionHandler.Services.Generated.Quanta.Models
 {
     public partial class ApiException
     {

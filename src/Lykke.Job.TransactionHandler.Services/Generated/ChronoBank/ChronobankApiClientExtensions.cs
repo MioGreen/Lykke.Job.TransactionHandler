@@ -2,10 +2,10 @@
 // Changes may cause incorrect behavior and will be lost if the code is
 // regenerated.
 
-namespace LkeServices.Generated.ChronoBankApi
-{
-    using System.Threading.Tasks;
+using System.Threading.Tasks;
 
+namespace Lykke.Job.TransactionHandler.Services.Generated.ChronoBank
+{
     /// <summary>
     /// Extension methods for ChronobankApiClient.
     /// </summary>

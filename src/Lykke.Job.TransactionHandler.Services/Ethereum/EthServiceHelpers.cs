@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Numerics;
 
-namespace Lykke.Job.TransactionHandler.Services.Etherium
+namespace Lykke.Job.TransactionHandler.Services.Ethereum
 {
     public static class EthServiceHelpers
     {

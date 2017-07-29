@@ -3,9 +3,9 @@ using System.Threading.Tasks;
 using AutoMapper;
 using AzureStorage;
 using Common;
-using Lykke.Job.TransactionHandler.Core.Domain.Etherium;
+using Lykke.Job.TransactionHandler.Core.Domain.Ethereum;
 
-namespace Lykke.Job.TransactionHandler.AzureRepositories.Etherium
+namespace Lykke.Job.TransactionHandler.AzureRepositories.Ethereum
 {
     public class EthereumTransactionReqEntity : BaseEntity, IEthereumTransactionRequest
     {

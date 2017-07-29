@@ -53,6 +53,9 @@ namespace Lykke.Job.TransactionHandler.Queues.Common
             try
             {
                 message = Encoding.UTF8.GetString(ea.Body);
+
+                await _log.WriteInfoAsync(GetType().Name, nameof(ProcessMessage), message, "processing event");
+
                 var processed = await ProcessMessage(message);
                 if (processed)
                 {

@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
-using LkeServices.Generated.BitcoinCoreApi;
-using LkeServices.Generated.BitcoinCoreApi.Models;
 using Lykke.Job.TransactionHandler.Core;
 using Lykke.Job.TransactionHandler.Core.Services.BitCoin.BitCoinApi;
 using Lykke.Job.TransactionHandler.Core.Services.BitCoin.BitCoinApi.Models;
+using Lykke.Job.TransactionHandler.Services.Generated.BitcoinCoreAPI;
+using Lykke.Job.TransactionHandler.Services.Generated.BitcoinCoreAPI.Models;
 
 namespace Lykke.Job.TransactionHandler.Services.BitCoin.BitCoinApiClient
 {

@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Common.Log;
-using LkeServices.Generated.QuantaApi;
-using LkeServices.Generated.QuantaApi.Models;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.Quanta;
 using Lykke.Job.TransactionHandler.Core.Services.Quanta;
+using Lykke.Job.TransactionHandler.Services.Generated.Quanta;
+using Lykke.Job.TransactionHandler.Services.Generated.Quanta.Models;
 using Lykke.Job.TransactionHandler.Services.Notifications;
 
 namespace Lykke.Job.TransactionHandler.Services.Quanta

@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using LkeServices.Generated.MarginApi;
-using LkeServices.Generated.MarginApi.Models;
 using Lykke.Job.TransactionHandler.Core.Services.MarginTrading;
+using Lykke.Job.TransactionHandler.Services.Generated.MarginApi;
+using Lykke.Job.TransactionHandler.Services.Generated.MarginApi.Models;
 
 namespace Lykke.Job.TransactionHandler.Services.MarginTrading
 {

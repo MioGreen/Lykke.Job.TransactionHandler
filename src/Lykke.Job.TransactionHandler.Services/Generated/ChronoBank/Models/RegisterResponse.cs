@@ -2,7 +2,7 @@
 // Changes may cause incorrect behavior and will be lost if the code is
 // regenerated.
 
-namespace LkeServices.Generated.ChronoBankApi.Models
+namespace Lykke.Job.TransactionHandler.Services.Generated.ChronoBank.Models
 {
     public partial class RegisterResponse
     {

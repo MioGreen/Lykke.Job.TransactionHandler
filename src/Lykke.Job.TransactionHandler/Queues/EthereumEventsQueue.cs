@@ -7,11 +7,11 @@ using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.Blockchain;
 using Lykke.Job.TransactionHandler.Core.Domain.CashOperations;
 using Lykke.Job.TransactionHandler.Core.Domain.Clients;
-using Lykke.Job.TransactionHandler.Core.Domain.Etherium;
+using Lykke.Job.TransactionHandler.Core.Domain.Ethereum;
 using Lykke.Job.TransactionHandler.Core.Domain.PaymentSystems;
 using Lykke.Job.TransactionHandler.Core.Services.Messages.Email;
 using Lykke.Job.TransactionHandler.Queues.Common;
-using Lykke.Job.TransactionHandler.Services.Etherium;
+using Lykke.Job.TransactionHandler.Services.Ethereum;
 using Lykke.MatchingEngine.Connector.Abstractions.Models;
 using Lykke.MatchingEngine.Connector.Abstractions.Services;
 using Lykke.Service.Assets.Client.Custom;
@@ -64,9 +64,6 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         public override async Task<bool> ProcessMessage(string message)
         {
-            await _log.WriteInfoAsync(nameof(EthereumEventsQueue), nameof(ProcessMessage), message,
-                "processing eth event");
-
             var queueMessage = JsonConvert
                 .DeserializeObject<CoinEvent>(message);
 

@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Common.Log;
-using LkeServices.Generated.ChronoBankApi;
-using LkeServices.Generated.ChronoBankApi.Models;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.ChronoBank;
 using Lykke.Job.TransactionHandler.Core.Services.ChronoBank;
+using Lykke.Job.TransactionHandler.Services.Generated.ChronoBank;
+using Lykke.Job.TransactionHandler.Services.Generated.ChronoBank.Models;
 using Lykke.Job.TransactionHandler.Services.Notifications;
 
 namespace Lykke.Job.TransactionHandler.Services.ChronoBank

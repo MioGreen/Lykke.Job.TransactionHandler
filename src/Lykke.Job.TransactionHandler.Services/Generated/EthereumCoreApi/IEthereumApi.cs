@@ -2,15 +2,15 @@
 // Changes may cause incorrect behavior and will be lost if the code is
 // regenerated.
 
-namespace LkeServices.Generated.EthereumCoreApi
-{
-    using Microsoft.Rest;
-    using Models;
-    using Newtonsoft.Json;
-    using System.Collections.Generic;
-    using System.Threading;
-    using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Lykke.Job.TransactionHandler.Services.Generated.EthereumCoreApi.Models;
+using Microsoft.Rest;
+using Newtonsoft.Json;
 
+namespace Lykke.Job.TransactionHandler.Services.Generated.EthereumCoreApi
+{
     /// <summary>
     /// </summary>
     public partial interface IEthereumApi : System.IDisposable

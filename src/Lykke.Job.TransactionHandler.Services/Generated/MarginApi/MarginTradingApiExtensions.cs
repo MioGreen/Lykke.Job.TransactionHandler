@@ -2,11 +2,11 @@
 // Changes may cause incorrect behavior and will be lost if the code is
 // regenerated.
 
-namespace LkeServices.Generated.MarginApi
-{
-    using System.Threading.Tasks;
-   using Models;
+using System.Threading.Tasks;
+using Lykke.Job.TransactionHandler.Services.Generated.MarginApi.Models;
 
+namespace Lykke.Job.TransactionHandler.Services.Generated.MarginApi
+{
     /// <summary>
     /// Extension methods for MarginTradingApi.
     /// </summary>

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using Microsoft.WindowsAzure.Storage;
@@ -17,7 +18,7 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories
             foreach (var p in GetType()
                 .GetProperties()
                 .Where(x => x.PropertyType == typeof(decimal) && properties.ContainsKey(x.Name)))
-                p.SetValue(this, Convert.ToDecimal(properties[p.Name].StringValue));
+                p.SetValue(this, Convert.ToDecimal(properties[p.Name].StringValue, CultureInfo.InvariantCulture));
 
             foreach (var p in GetType()
                 .GetProperties()
@@ -31,7 +32,7 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories
             var properties = base.WriteEntity(operationContext);
 
             foreach (var p in GetType().GetProperties().Where(x => x.PropertyType == typeof(decimal)))
-                properties.Add(p.Name, new EntityProperty(p.GetValue(this).ToString()));
+                properties.Add(p.Name, new EntityProperty(Convert.ToString(p.GetValue(this), CultureInfo.InvariantCulture)));
 
             foreach (var p in GetType().GetProperties().Where(x => x.PropertyType.GetTypeInfo().IsEnum))
                 properties.Add(p.Name, new EntityProperty((int) p.GetValue(this)));

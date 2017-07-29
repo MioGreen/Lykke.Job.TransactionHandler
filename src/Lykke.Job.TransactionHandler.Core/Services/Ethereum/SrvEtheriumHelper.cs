@@ -2,7 +2,7 @@
 using System.Threading.Tasks;
 using Lykke.Service.Assets.Client.Custom;
 
-namespace Lykke.Job.TransactionHandler.Core.Services.Etherium
+namespace Lykke.Job.TransactionHandler.Core.Services.Ethereum
 {
     public interface ISrvEthereumHelper
     {

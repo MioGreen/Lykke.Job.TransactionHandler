@@ -1,6 +1,6 @@
 ﻿using System.Threading.Tasks;
 
-namespace Lykke.Job.TransactionHandler.Core.Domain.Etherium
+namespace Lykke.Job.TransactionHandler.Core.Domain.Ethereum
 {
     public enum Event
     {

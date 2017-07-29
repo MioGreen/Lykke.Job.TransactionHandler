@@ -2,12 +2,12 @@
 // Changes may cause incorrect behavior and will be lost if the code is
 // regenerated.
 
-namespace LkeServices.Generated.EthereumCoreApi
-{
-    using Models;
-    using System.Threading;
-    using System.Threading.Tasks;
+using System.Threading;
+using System.Threading.Tasks;
+using Lykke.Job.TransactionHandler.Services.Generated.EthereumCoreApi.Models;
 
+namespace Lykke.Job.TransactionHandler.Services.Generated.EthereumCoreApi
+{
     /// <summary>
     /// Extension methods for EthereumApi.
     /// </summary>

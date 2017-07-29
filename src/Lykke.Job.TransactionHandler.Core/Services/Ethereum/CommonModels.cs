@@ -1,4 +1,4 @@
-﻿namespace Lykke.Job.TransactionHandler.Core.Services.Etherium
+﻿namespace Lykke.Job.TransactionHandler.Core.Services.Ethereum
 {
     public class EthereumResponse<T> : EthereumBaseResponse
     {

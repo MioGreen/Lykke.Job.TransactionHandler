@@ -8,10 +8,10 @@ using Lykke.Job.TransactionHandler.Core;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.Blockchain;
 using Lykke.Job.TransactionHandler.Core.Domain.CashOperations;
-using Lykke.Job.TransactionHandler.Core.Domain.Etherium;
+using Lykke.Job.TransactionHandler.Core.Domain.Ethereum;
 using Lykke.Job.TransactionHandler.Core.Domain.Exchange;
 using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
-using Lykke.Job.TransactionHandler.Core.Services.Etherium;
+using Lykke.Job.TransactionHandler.Core.Services.Ethereum;
 using Lykke.Job.TransactionHandler.Core.Services.Offchain;
 using Lykke.Job.TransactionHandler.Queues.Common;
 using Lykke.Job.TransactionHandler.Queues.Models;
@@ -268,10 +268,16 @@ namespace Lykke.Job.TransactionHandler.Queues
                     _baseSettings.EthereumSettings.HotwalletAddress, toAddress, operation.Amount);
 
                 if (res.HasError)
+                {
                     errMsg = res.Error.ToJson();
+
+                    await _log.WriteWarningAsync(nameof(TradeQueue), nameof(ProcessEthGuaranteeTransfer), errMsg, string.Empty);
+                }
             }
             catch (Exception e)
             {
+                await _log.WriteErrorAsync(nameof(TradeQueue), nameof(ProcessEthGuaranteeTransfer), e.Message, e);
+
                 errMsg = $"{e.GetType()}\n{e.Message}";
             }
 
@@ -313,7 +319,10 @@ namespace Lykke.Job.TransactionHandler.Queues
                 }
 
                 if (res.HasError)
+                {
                     errMsg = res.Error.ToJson();
+                    await _log.WriteWarningAsync(nameof(TradeQueue), nameof(ProcessEthGuaranteeTransfer), errMsg, string.Empty);
+                }
 
                 ethereumTxRequest.OperationIds =
                     clientTrades.Where(x => x.ClientId == ethereumTxRequest.ClientId && x.Amount < 0)
@@ -323,6 +332,8 @@ namespace Lykke.Job.TransactionHandler.Queues
             }
             catch (Exception e)
             {
+                await _log.WriteErrorAsync(nameof(TradeQueue), nameof(ProcessEthGuaranteeTransfer), e.Message, e);
+
                 errMsg = $"{e.GetType()}\n{e.Message}";
             }
 

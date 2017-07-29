@@ -2,10 +2,10 @@
 // Changes may cause incorrect behavior and will be lost if the code is
 // regenerated.
 
-namespace LkeServices.Generated.MarginApi
-{
-    using Models;
+using Lykke.Job.TransactionHandler.Services.Generated.MarginApi.Models;
 
+namespace Lykke.Job.TransactionHandler.Services.Generated.MarginApi
+{
     public partial class BitcoinApi : Microsoft.Rest.ServiceClient<BitcoinApi>, IBitcoinApi
     {
         /// <summary>

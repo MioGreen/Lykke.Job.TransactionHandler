@@ -2,10 +2,10 @@
 // Changes may cause incorrect behavior and will be lost if the code is
 // regenerated.
 
-namespace LkeServices.Generated.EthereumCoreApi.Models
-{
-    using Newtonsoft.Json;
+using Newtonsoft.Json;
 
+namespace Lykke.Job.TransactionHandler.Services.Generated.EthereumCoreApi.Models
+{
     public partial class CheckSignResponse
     {
         /// <summary>

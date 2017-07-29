@@ -1,13 +1,13 @@
 using System;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using LkeServices.Generated.EthereumCoreApi;
-using LkeServices.Generated.EthereumCoreApi.Models;
-using Lykke.Job.TransactionHandler.Core.Services.Etherium;
+using Lykke.Job.TransactionHandler.Core.Services.Ethereum;
+using Lykke.Job.TransactionHandler.Services.Generated.EthereumCoreApi;
+using Lykke.Job.TransactionHandler.Services.Generated.EthereumCoreApi.Models;
 using Lykke.Service.Assets.Client.Custom;
 using Nethereum.Util;
 
-namespace Lykke.Job.TransactionHandler.Services.Etherium
+namespace Lykke.Job.TransactionHandler.Services.Ethereum
 {
     public class SrvEthereumHelper : ISrvEthereumHelper
     {

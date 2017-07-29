@@ -2,19 +2,19 @@
 using System.Linq;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
+using AutoMapper;
 using AzureStorage.Queue;
 using AzureStorage.Tables;
 using AzureStorage.Tables.Templates.Index;
 using Common;
 using Common.Log;
-using LkeServices.Generated.EthereumCoreApi;
 using Lykke.Job.TransactionHandler.AzureRepositories.Assets;
 using Lykke.Job.TransactionHandler.AzureRepositories.BitCoin;
 using Lykke.Job.TransactionHandler.AzureRepositories.Blockchain;
 using Lykke.Job.TransactionHandler.AzureRepositories.CashOperations;
 using Lykke.Job.TransactionHandler.AzureRepositories.ChronoBank;
 using Lykke.Job.TransactionHandler.AzureRepositories.Clients;
-using Lykke.Job.TransactionHandler.AzureRepositories.Etherium;
+using Lykke.Job.TransactionHandler.AzureRepositories.Ethereum;
 using Lykke.Job.TransactionHandler.AzureRepositories.Exchange;
 using Lykke.Job.TransactionHandler.AzureRepositories.MarginTrading;
 using Lykke.Job.TransactionHandler.AzureRepositories.Messages.Email;
@@ -30,7 +30,7 @@ using Lykke.Job.TransactionHandler.Core.Domain.CashOperations;
 using Lykke.Job.TransactionHandler.Core.Domain.ChronoBank;
 using Lykke.Job.TransactionHandler.Core.Domain.Clients;
 using Lykke.Job.TransactionHandler.Core.Domain.Clients.Core.Clients;
-using Lykke.Job.TransactionHandler.Core.Domain.Etherium;
+using Lykke.Job.TransactionHandler.Core.Domain.Ethereum;
 using Lykke.Job.TransactionHandler.Core.Domain.Exchange;
 using Lykke.Job.TransactionHandler.Core.Domain.MarginTrading;
 using Lykke.Job.TransactionHandler.Core.Domain.Messages.Email;
@@ -42,7 +42,7 @@ using Lykke.Job.TransactionHandler.Core.Services;
 using Lykke.Job.TransactionHandler.Core.Services.AppNotifications;
 using Lykke.Job.TransactionHandler.Core.Services.BitCoin.BitCoinApi;
 using Lykke.Job.TransactionHandler.Core.Services.ChronoBank;
-using Lykke.Job.TransactionHandler.Core.Services.Etherium;
+using Lykke.Job.TransactionHandler.Core.Services.Ethereum;
 using Lykke.Job.TransactionHandler.Core.Services.MarginTrading;
 using Lykke.Job.TransactionHandler.Core.Services.Messages.Email;
 using Lykke.Job.TransactionHandler.Core.Services.Messages.Email.Sender;
@@ -53,7 +53,8 @@ using Lykke.Job.TransactionHandler.Queues;
 using Lykke.Job.TransactionHandler.Services;
 using Lykke.Job.TransactionHandler.Services.BitCoin.BitCoinApiClient;
 using Lykke.Job.TransactionHandler.Services.ChronoBank;
-using Lykke.Job.TransactionHandler.Services.Etherium;
+using Lykke.Job.TransactionHandler.Services.Ethereum;
+using Lykke.Job.TransactionHandler.Services.Generated.EthereumCoreApi;
 using Lykke.Job.TransactionHandler.Services.Http;
 using Lykke.Job.TransactionHandler.Services.MarginTrading;
 using Lykke.Job.TransactionHandler.Services.Messages.Email;
@@ -113,6 +114,14 @@ namespace Lykke.Job.TransactionHandler.Modules
                AssetPairsCacheExpirationPeriod = _jobSettings.AssetsCache.ExpirationPeriod,
                AssetsCacheExpirationPeriod = _jobSettings.AssetsCache.ExpirationPeriod
             });
+
+            Mapper.Initialize(cfg => cfg.CreateMap<IBcnCredentialsRecord, BcnCredentialsRecordEntity>().IgnoreTableEntityFields());
+
+            Mapper.Initialize(cfg => cfg.CreateMap<IEthereumTransactionRequest, EthereumTransactionReqEntity>().IgnoreTableEntityFields()
+                .ForMember(x => x.SignedTransferVal, config => config.Ignore())
+                .ForMember(x => x.OperationIdsVal, config => config.Ignore()));
+
+            Mapper.Configuration.AssertConfigurationIsValid();
 
             BindRabbitMq(builder);
             BindMatchingEngineChannel(builder);

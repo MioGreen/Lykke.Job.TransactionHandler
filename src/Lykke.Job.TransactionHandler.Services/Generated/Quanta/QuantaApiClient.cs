@@ -2,10 +2,10 @@
 // Changes may cause incorrect behavior and will be lost if the code is
 // regenerated.
 
-namespace LkeServices.Generated.QuantaApi
-{
-    using Models;
+using Lykke.Job.TransactionHandler.Services.Generated.Quanta.Models;
 
+namespace Lykke.Job.TransactionHandler.Services.Generated.Quanta
+{
     public partial class QuantaApiClient : Microsoft.Rest.ServiceClient<QuantaApiClient>, IQuantaApiClient
     {
         /// <summary>
