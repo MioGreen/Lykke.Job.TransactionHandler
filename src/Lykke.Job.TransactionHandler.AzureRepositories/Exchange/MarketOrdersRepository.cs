@@ -70,7 +70,7 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Exchange
         }
 
         public DateTime CreatedAt { get; set; }
-        public DateTime MatchedAt { get; set; }
+        public DateTime? MatchedAt { get; set; }
 
         public double Price { get; set; }
         public string AssetPairId { get; set; }

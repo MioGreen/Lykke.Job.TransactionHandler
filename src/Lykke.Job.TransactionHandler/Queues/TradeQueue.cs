@@ -91,6 +91,12 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             await _marketOrdersRepository.CreateAsync(tradeItem.Order);
 
+            if (!tradeItem.Order.Status.Equals("matched", StringComparison.OrdinalIgnoreCase))
+            {
+                await _log.WriteInfoAsync(nameof(TradeQueue), nameof(ProcessMessage), message, "Message processing being aborted, due to order status is not matched. Order was saved");
+                return true;
+            }
+
             // offchain operation
             var offchainOrder = await _offchainOrdersRepository.GetOrder(tradeItem.Order.ExternalId);
             if (offchainOrder != null)

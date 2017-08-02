@@ -2,6 +2,7 @@
 using System.Text;
 using System.Threading.Tasks;
 using Common.Log;
+using Microsoft.WindowsAzure.Storage;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -59,19 +60,26 @@ namespace Lykke.Job.TransactionHandler.Queues.Common
                 var processed = await ProcessMessage(message);
                 if (processed)
                 {
-                    ((EventingBasicConsumer)sender).Model.BasicAck(ea.DeliveryTag, false);
+                    ((EventingBasicConsumer) sender).Model.BasicAck(ea.DeliveryTag, false);
                     return;
                 }
             }
+            catch (StorageException ex)
+            {
+                var writeErrorAsync = _log?.WriteErrorAsync(GetType().Name, "MessageReceived", 
+                    $"\r\n- Message: {message},\r\n- ErrorCode: {ex.RequestInformation.ExtendedErrorInformation.ErrorCode},\r\n- ErrorMessage: {ex.RequestInformation.ExtendedErrorInformation.ErrorMessage}", ex);
+                if (writeErrorAsync != null)
+                    await writeErrorAsync;
+            }
             catch (Exception ex)
             {
-                var writeErrorAsync = _log?.WriteErrorAsync(nameof(RabbitQueue), "MessageReceived", message, ex);
+                var writeErrorAsync = _log?.WriteErrorAsync(GetType().Name, "MessageReceived", message, ex);
                 if (writeErrorAsync != null)
                     await writeErrorAsync;
             }
 
             ((EventingBasicConsumer)sender).Model.BasicReject(ea.DeliveryTag, false);
-            var warning = _log?.WriteWarningAsync(nameof(RabbitQueue), "MessageReceived", message, "Mesage was not processed");
+            var warning = _log?.WriteWarningAsync(GetType().Name, "MessageReceived", message, "Mesage was not processed");
             if (warning != null)
                 await warning;
         }

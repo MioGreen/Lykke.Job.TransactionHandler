@@ -64,8 +64,6 @@ namespace Lykke.Job.TransactionHandler.Queues.Models
                 get { return Price.GetValueOrDefault(); }
                 set { Price = value; }
             }
-
-            DateTime IMarketOrder.MatchedAt => MatchedAt.GetValueOrDefault();
         }
 
         public class TradeInfo
