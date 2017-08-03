@@ -12,11 +12,8 @@ namespace Lykke.Job.TransactionHandler.Core
         public AssetsSettings Assets { get; set; }
         public EthereumSettings Ethereum { get; set; }
         public BitcoinCoreSettings BitCoinCore { get; set; }
-        public SolarCoinSettings SolarCoin { get; set; }
         public MarginTradingSettings MarginTrading { get; set; }
         public MatchingEngineSettings MatchingEngineClient { get; set; }
-        public ChronoBankSettings ChronoBank { get; set; }
-        public QuantaSettings Quanta { get; set; }
         public NotificationsSettings AppNotifications { get; set; }
         public RabbitMqSettings RabbitMq { get; set; }
 
@@ -48,25 +45,10 @@ namespace Lykke.Job.TransactionHandler.Core
             public TimeSpan ExpirationPeriod { get; set; }
         }
 
-        public class QuantaSettings
-        {
-            public string ApiUrl { get; set; }
-        }
-
-        public class ChronoBankSettings
-        {
-            public string ApiUrl { get; set; }
-        }
-
         public class NotificationsSettings
         {
             public string HubConnString { get; set; }
             public string HubName { get; set; }
-        }
-
-        public class SolarCoinSettings
-        {
-            public string GetAddressUrl { get; set; }
         }
 
         public class MatchingEngineSettings
