@@ -10,18 +10,19 @@ namespace Lykke.Job.TransactionHandler.Core
         public SlackNotificationsSettings SlackNotifications { get; set; }
         public SlackIntegrationSettings SlackIntegration { get; set; }
         public AssetsSettings Assets { get; set; }
+        public EthereumSettings Ethereum { get; set; }
+        public BitcoinCoreSettings BitCoinCore { get; set; }
+        public SolarCoinSettings SolarCoin { get; set; }
+        public MarginTradingSettings MarginTrading { get; set; }
+        public MatchingEngineSettings MatchingEngineClient { get; set; }
+        public ChronoBankSettings ChronoBank { get; set; }
+        public QuantaSettings Quanta { get; set; }
+        public NotificationsSettings AppNotifications { get; set; }
+        public RabbitMqSettings RabbitMq { get; set; }
 
         public class TransactionHandlerSettings
         {
             public DbSettings Db { get; set; }
-            public EthereumSettings EthereumSettings { get; set; }
-            public BitcoinCoreSettings BitCoinCore { get; set; }
-            public SolarCoinSettings SolarCoin { get; set; }
-            public MarginSettings MarginSettings { get; set; }
-            public MatchingOrdersSettings MatchingEngine { get; set; }
-            public NotificationsSettings Notifications { get; set; }
-            public ChronoBankSettings ChronoBankSettings { get; set; }
-            public QuantaSettings QuantaSettings { get; set; }
             public AssetsCacheSettings AssetsCache { get; set; }
             public string ExchangeOperationsServiceUrl { get; set; }
         }
@@ -59,7 +60,7 @@ namespace Lykke.Job.TransactionHandler.Core
 
         public class NotificationsSettings
         {
-            public string HubConnectionString { get; set; }
+            public string HubConnString { get; set; }
             public string HubName { get; set; }
         }
 
@@ -68,13 +69,9 @@ namespace Lykke.Job.TransactionHandler.Core
             public string GetAddressUrl { get; set; }
         }
 
-        public class MatchingOrdersSettings
+        public class MatchingEngineSettings
         {
             public IpEndpointSettings IpEndpoint { get; set; }
-
-            public RabbitMqSettings RabbitMq { get; set; }
-
-            public string MetricLoggerLine { get; set; }
         }
         
         public class IpEndpointSettings
@@ -87,15 +84,9 @@ namespace Lykke.Job.TransactionHandler.Core
             {
                 return new IPEndPoint(IPAddress.Parse(useInternal ? InternalHost : Host), Port);
             }
-
-            public IPEndPoint GetServerIpEndPoint()
-            {
-                return new IPEndPoint(IPAddress.Any, Port);
-            }
-
         }
 
-        public class MarginSettings
+        public class MarginTradingSettings
         {
             public string ApiKey { get; set; }
             public string DemoApiKey { get; set; }
@@ -106,7 +97,6 @@ namespace Lykke.Job.TransactionHandler.Core
         public class BitcoinCoreSettings
         {
             public string BitcoinCoreApiUrl { get; set; }
-            public string ClientSigningApiUrl { get; set; }
         }
 
         public class SlackIntegrationSettings
@@ -134,14 +124,12 @@ namespace Lykke.Job.TransactionHandler.Core
 
         public class RabbitMqSettings
         {
-            //public string Host { get; set; }
             public string ExternalHost { get; set; }
 
             public int Port { get; set; }
             public string Username { get; set; }
             public string Password { get; set; }
 
-            public string ExchangeOrderbook { get; set; }
             public string ExchangeSwap { get; set; }
 
             public string ExchangeCashOperation { get; set; }
@@ -154,8 +142,6 @@ namespace Lykke.Job.TransactionHandler.Core
         public class SlackNotificationsSettings
         {
             public AzureQueueSettings AzureQueue { get; set; }
-
-            public int ThrottlingLimitSeconds { get; set; }
         }
 
         public class AzureQueueSettings

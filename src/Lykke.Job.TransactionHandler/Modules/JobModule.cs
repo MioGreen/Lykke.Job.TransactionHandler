@@ -147,7 +147,7 @@ namespace Lykke.Job.TransactionHandler.Modules
             var socketLog = new SocketLogDynamic(i => { },
                 str => Console.WriteLine(DateTime.UtcNow.ToIsoDateTime() + ": " + str));
 
-            container.BindMeClient(_jobSettings.MatchingEngine.IpEndpoint.GetClientIpEndPoint(), socketLog);
+            container.BindMeClient(_settings.MatchingEngineClient.IpEndpoint.GetClientIpEndPoint(), socketLog);
         }
 
         private void BindServices(ContainerBuilder builder)
@@ -156,7 +156,7 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.RegisterType<BitcoinApiClient>()
                 .As<IBitcoinApiClient>()
                 .SingleInstance()
-                .WithParameter(TypedParameter.From(_jobSettings.BitCoinCore));
+                .WithParameter(TypedParameter.From(_settings.BitCoinCore));
             builder.RegisterType<OffchainRequestService>().As<IOffchainRequestService>();
             builder.RegisterType<SrvSlackNotifications>()
                 .SingleInstance()
@@ -166,34 +166,33 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.RegisterInstance(exchangeOperationsService).As<IExchangeOperationsService>().SingleInstance();
 
             builder.Register<IAppNotifications>(x => new SrvAppNotifications(
-                _jobSettings.Notifications.HubConnectionString,
-                _jobSettings.Notifications.HubName));
+                _settings.AppNotifications.HubConnString,
+                _settings.AppNotifications.HubName));
             
-            builder.RegisterInstance(new ChronoBankServiceSettings { BaseUri = new Uri(_jobSettings.ChronoBankSettings.ApiUrl) });
+            builder.RegisterInstance(new ChronoBankServiceSettings { BaseUri = new Uri(_settings.ChronoBank.ApiUrl) });
             builder.RegisterType<ChronoBankService>().As<IChronoBankService>().SingleInstance();
 
             builder.RegisterType<SrvSolarCoinHelper>()
                 .As<ISrvSolarCoinHelper>()
                 .SingleInstance()
-                .WithParameter(TypedParameter.From(_jobSettings.SolarCoin));
+                .WithParameter(TypedParameter.From(_settings.SolarCoin));
             
-            builder.RegisterInstance(new QuantaServiceSettings { BaseUri = new Uri(_jobSettings.QuantaSettings.ApiUrl) });
+            builder.RegisterInstance(new QuantaServiceSettings { BaseUri = new Uri(_settings.Quanta.ApiUrl) });
             builder.RegisterType<QuantaService>().As<IQuantaService>().SingleInstance();
             
             builder.Register<IEthereumApi>(x =>
             {
-                var api = new EthereumApi(new Uri(_jobSettings.EthereumSettings.EthereumCoreUrl));
+                var api = new EthereumApi(new Uri(_settings.Ethereum.EthereumCoreUrl));
                 api.SetRetryPolicy(null);
                 return api;
             }).SingleInstance();
 
             builder.RegisterType<SrvEthereumHelper>().As<ISrvEthereumHelper>().SingleInstance();
             
-            builder.RegisterInstance(_jobSettings.MarginSettings);
             builder.RegisterType<MarginDataServiceResolver>()
                 .As<IMarginDataServiceResolver>()
                 .SingleInstance()
-                .WithParameter(TypedParameter.From(_jobSettings.MarginSettings));
+                .WithParameter(TypedParameter.From(_settings.MarginTrading));
 
             builder.RegisterType<EmailSender>().As<IEmailSender>().SingleInstance();
             builder.RegisterType<SrvEmailsFacade>().As<ISrvEmailsFacade>().SingleInstance();
@@ -306,11 +305,14 @@ namespace Lykke.Job.TransactionHandler.Modules
 
         private void BindRabbitMq(ContainerBuilder builder)
         {
-            builder.RegisterInstance(_jobSettings.MatchingEngine.RabbitMq);
+            builder.RegisterInstance(_settings.RabbitMq);
             builder.RegisterType<CashInOutQueue>().SingleInstance().AutoActivate();
             builder.RegisterType<TransferQueue>().SingleInstance().AutoActivate();
             builder.RegisterType<SwapQueue>().SingleInstance().AutoActivate();
-            builder.RegisterType<TradeQueue>().SingleInstance().AutoActivate();
+            builder.RegisterType<TradeQueue>()
+                .SingleInstance()
+                .WithParameter(TypedParameter.From(_settings.Ethereum))
+                .AutoActivate();
             builder.RegisterType<EthereumEventsQueue>().SingleInstance().AutoActivate();
         }
     }

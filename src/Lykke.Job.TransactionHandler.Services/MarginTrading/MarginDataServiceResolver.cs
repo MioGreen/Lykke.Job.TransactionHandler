@@ -6,9 +6,9 @@ namespace Lykke.Job.TransactionHandler.Services.MarginTrading
 {
     public class MarginDataServiceResolver : IMarginDataServiceResolver
     {
-        private readonly AppSettings.MarginSettings _settings;
+        private readonly AppSettings.MarginTradingSettings _settings;
 
-        public MarginDataServiceResolver(AppSettings.MarginSettings settings)
+        public MarginDataServiceResolver(AppSettings.MarginTradingSettings settings)
         {
             _settings = settings;
         }

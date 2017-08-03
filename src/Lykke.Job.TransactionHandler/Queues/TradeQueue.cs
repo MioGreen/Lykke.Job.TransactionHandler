@@ -45,22 +45,28 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IEthereumTransactionRequestRepository _ethereumTransactionRequestRepository;
         private readonly ISrvEthereumHelper _srvEthereumHelper;
         private readonly IBcnClientCredentialsRepository _bcnClientCredentialsRepository;
-        private readonly AppSettings.TransactionHandlerSettings _baseSettings;
+        private readonly AppSettings.EthereumSettings _settings;
         private readonly IEthClientEventLogs _ethClientEventLogs;
         private readonly ILog _log;
-        private ICachedAssetsService _assetsService;
+        private readonly ICachedAssetsService _assetsService;
 
-        public TradeQueue(AppSettings.RabbitMqSettings config, ILog log,
+        public TradeQueue(
+            AppSettings.RabbitMqSettings config, 
+            ILog log,
             IBitcoinCommandSender bitcoinCommandSender,
             IWalletCredentialsRepository walletCredentialsRepository,
             IBitCoinTransactionsRepository bitcoinTransactionsRepository,
             IMarketOrdersRepository marketOrdersRepository,
-            IClientTradesRepository clientTradesRepository, IOffchainRequestService offchainRequestService,
-            IOffchainOrdersRepository offchainOrdersRepository, IOffchainTransferRepository offchainTransferRepository,
-            IOffchainIgnoreRepository offchainIgnoreRepository, IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
+            IClientTradesRepository clientTradesRepository, 
+            IOffchainRequestService offchainRequestService,
+            IOffchainOrdersRepository offchainOrdersRepository, 
+            IOffchainTransferRepository offchainTransferRepository,
+            IOffchainIgnoreRepository offchainIgnoreRepository, 
+            IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
             ISrvEthereumHelper srvEthereumHelper, 
             ICachedAssetsService assetsService,
-            IBcnClientCredentialsRepository bcnClientCredentialsRepository, AppSettings.TransactionHandlerSettings baseSettings,
+            IBcnClientCredentialsRepository bcnClientCredentialsRepository, 
+            AppSettings.EthereumSettings settings,
             IEthClientEventLogs ethClientEventLogs)
             : base(config.ExternalHost, config.Port,
                 config.ExchangeSwap, QueueName,
@@ -79,7 +85,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             _srvEthereumHelper = srvEthereumHelper;
             _assetsService = assetsService;
             _bcnClientCredentialsRepository = bcnClientCredentialsRepository;
-            _baseSettings = baseSettings;
+            _settings = settings;
             _ethClientEventLogs = ethClientEventLogs;
             _log = log;
         }
@@ -271,7 +277,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 });
 
                 var res = await _srvEthereumHelper.SendTransferAsync(transferId, string.Empty, asset,
-                    _baseSettings.EthereumSettings.HotwalletAddress, toAddress, operation.Amount);
+                    _settings.HotwalletAddress, toAddress, operation.Amount);
 
                 if (res.HasError)
                 {
@@ -316,12 +322,12 @@ namespace Lykke.Job.TransactionHandler.Queues
                 {
                     res = await _srvEthereumHelper.SendTransferWithChangeAsync(change,
                         ethereumTxRequest.SignedTransfer.Sign, ethereumTxRequest.SignedTransfer.Id,
-                        asset, fromAddress, _baseSettings.EthereumSettings.HotwalletAddress, ethereumTxRequest.Volume);
+                        asset, fromAddress, _settings.HotwalletAddress, ethereumTxRequest.Volume);
                 }
                 else
                 {
                     res = await _srvEthereumHelper.SendTransferAsync(ethereumTxRequest.SignedTransfer.Id, ethereumTxRequest.SignedTransfer.Sign,
-                        asset, fromAddress, _baseSettings.EthereumSettings.HotwalletAddress, ethereumTxRequest.Volume);
+                        asset, fromAddress, _settings.HotwalletAddress, ethereumTxRequest.Volume);
                 }
 
                 if (res.HasError)
