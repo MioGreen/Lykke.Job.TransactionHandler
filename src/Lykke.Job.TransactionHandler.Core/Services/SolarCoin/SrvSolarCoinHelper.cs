@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 
 namespace Lykke.Job.TransactionHandler.Core.Services.SolarCoin
 {
     public interface ISrvSolarCoinHelper
     {
-        Task<string> SetNewSolarCoinAddress(IWalletCredentials walletCredentials);
         Task SendCashOutRequest(string id, SolarCoinAddress addressTo, double amount);
     }
 

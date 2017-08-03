@@ -169,15 +169,8 @@ namespace Lykke.Job.TransactionHandler.Modules
                 _settings.AppNotifications.HubConnString,
                 _settings.AppNotifications.HubName));
             
-            builder.RegisterInstance(new ChronoBankServiceSettings { BaseUri = new Uri(_settings.ChronoBank.ApiUrl) });
             builder.RegisterType<ChronoBankService>().As<IChronoBankService>().SingleInstance();
-
-            builder.RegisterType<SrvSolarCoinHelper>()
-                .As<ISrvSolarCoinHelper>()
-                .SingleInstance()
-                .WithParameter(TypedParameter.From(_settings.SolarCoin));
-            
-            builder.RegisterInstance(new QuantaServiceSettings { BaseUri = new Uri(_settings.Quanta.ApiUrl) });
+            builder.RegisterType<SrvSolarCoinHelper>().As<ISrvSolarCoinHelper>().SingleInstance();
             builder.RegisterType<QuantaService>().As<IQuantaService>().SingleInstance();
             
             builder.Register<IEthereumApi>(x =>
