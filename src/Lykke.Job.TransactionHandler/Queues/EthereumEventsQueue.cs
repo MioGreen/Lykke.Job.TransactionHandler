@@ -11,6 +11,7 @@ using Lykke.Job.TransactionHandler.Core.Domain.Ethereum;
 using Lykke.Job.TransactionHandler.Core.Domain.PaymentSystems;
 using Lykke.Job.TransactionHandler.Core.Services.Messages.Email;
 using Lykke.Job.TransactionHandler.Queues.Common;
+using Lykke.Job.TransactionHandler.Services;
 using Lykke.Job.TransactionHandler.Services.Ethereum;
 using Lykke.MatchingEngine.Connector.Abstractions.Models;
 using Lykke.MatchingEngine.Connector.Abstractions.Services;
