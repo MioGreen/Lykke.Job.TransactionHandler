@@ -15,6 +15,7 @@ using Lykke.Job.TransactionHandler.Core.Services.Ethereum;
 using Lykke.Job.TransactionHandler.Core.Services.Offchain;
 using Lykke.Job.TransactionHandler.Queues.Common;
 using Lykke.Job.TransactionHandler.Queues.Models;
+using Lykke.Job.TransactionHandler.Services;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.Assets.Client.Models;
 using Newtonsoft.Json;

@@ -66,6 +66,8 @@ using Lykke.MatchingEngine.Connector.Services;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.ExchangeOperations.Client;
 using Lykke.Service.ExchangeOperations.Contracts;
+using Lykke.Service.PersonalData.Client;
+using Lykke.Service.PersonalData.Contract;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Lykke.Job.TransactionHandler.Modules
@@ -189,6 +191,10 @@ namespace Lykke.Job.TransactionHandler.Modules
 
             builder.RegisterType<EmailSender>().As<IEmailSender>().SingleInstance();
             builder.RegisterType<SrvEmailsFacade>().As<ISrvEmailsFacade>().SingleInstance();
+
+            builder.RegisterType<PersonalDataService>()
+                .As<IPersonalDataService>()
+                .WithParameter(TypedParameter.From(_settings.TransactionHandlerJob.PersonalDataServiceSettings));
         }
 
         private void BindRepositories(ContainerBuilder builder)
@@ -245,11 +251,7 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.RegisterInstance<IClientSettingsRepository>(
                 new ClientSettingsRepository(
                     new AzureTableStorage<ClientSettingsEntity>(_dbSettings.ClientPersonalInfoConnString, "TraderSettings", _log)));
-
-            builder.RegisterInstance<IPersonalDataRepository>(
-                new PersonalDataRepository(
-                    new AzureTableStorage<PersonalDataEntity>(_dbSettings.ClientPersonalInfoConnString, "PersonalData", _log)));
-
+            
             builder.RegisterInstance<IEthClientEventLogs>(
                 new EthClientEventLogs(
                     new AzureTableStorage<EthClientEventRecord>(_dbSettings.LwEthLogsConnString, "EthClientEventLogs", _log)));

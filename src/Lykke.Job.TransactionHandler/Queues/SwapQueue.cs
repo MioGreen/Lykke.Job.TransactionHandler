@@ -6,6 +6,7 @@ using Lykke.Job.TransactionHandler.Core;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Queues.Common;
 using Lykke.Job.TransactionHandler.Queues.Models;
+using Lykke.Job.TransactionHandler.Services;
 using Newtonsoft.Json;
 
 namespace Lykke.Job.TransactionHandler.Queues

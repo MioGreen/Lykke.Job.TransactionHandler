@@ -8,6 +8,7 @@ using Lykke.Common.ApiLibrary.Swagger;
 using Lykke.Job.TransactionHandler.Core;
 using Lykke.Job.TransactionHandler.Models;
 using Lykke.Job.TransactionHandler.Modules;
+using Lykke.Job.TransactionHandler.Services;
 using Lykke.JobTriggers.Extenstions;
 using Lykke.Logs;
 using Lykke.SettingsReader;

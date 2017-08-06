@@ -24,6 +24,7 @@ using Lykke.Job.TransactionHandler.Services.Notifications;
 using Lykke.JobTriggers.Triggers.Attributes;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.ExchangeOperations.Contracts;
+using Lykke.Service.PersonalData.Contract;
 
 namespace Lykke.Job.TransactionHandler.TriggerHandlers
 {
@@ -34,7 +35,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
         private readonly ICashOutAttemptRepository _cashOutAttemptRepository;
         private readonly IClientTradesRepository _clientTradesRepository;
         private readonly IClientAccountsRepository _clientAccountsRepository;
-        private readonly IPersonalDataRepository _personalDataRepository;
+        private readonly IPersonalDataService _personalDataService;
         private readonly IOffchainTransferRepository _offchainTransferRepository;
         private readonly ITransferEventsRepository _transferEventsRepository;
         private readonly IOffchainRequestService _offchainRequestService;
@@ -69,7 +70,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             ISrvEmailsFacade srvEmailsFacade,
             IClientTradesRepository clientTradesRepository,
             IClientAccountsRepository clientAccountsRepository,
-            IPersonalDataRepository personalDataRepository,
+            IPersonalDataService personalDataService,
             IOffchainTransferRepository offchainTransferRepository,
             IChronoBankService chronoBankService,
             ISrvSolarCoinHelper srvSolarCoinHelper,
@@ -95,7 +96,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             _srvEmailsFacade = srvEmailsFacade;
             _clientTradesRepository = clientTradesRepository;
             _clientAccountsRepository = clientAccountsRepository;
-            _personalDataRepository = personalDataRepository;
+            _personalDataService = personalDataService;
             _offchainTransferRepository = offchainTransferRepository;
             _chronoBankService = chronoBankService;
             _srvSolarCoinHelper = srvSolarCoinHelper;
@@ -221,7 +222,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             {
                 await _transferEventsRepository.SetIsSettledIfExistsAsync(transfer.ClientId, transfer.OperationId, true);
 
-                var clientData = await _personalDataRepository.GetAsync(transfer.ClientId);
+                var clientData = await _personalDataService.GetAsync(transfer.ClientId);
 
                 if (transfer.Actions?.CashInConvertedOkEmail != null)
                 {
@@ -291,7 +292,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
                 }
                 else
                 {
-                    var clientData = await _personalDataRepository.GetAsync(contextData.ClientId);
+                    var clientData = await _personalDataService.GetAsync(contextData.ClientId);
                     await _srvEmailsFacade.SendNoRefundOCashOutMail(clientData.Email, contextData.Amount, contextData.AssetId, transaction.BlockchainHash);
                 }
             }
