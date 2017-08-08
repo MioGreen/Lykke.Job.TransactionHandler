@@ -32,7 +32,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
     {
         private readonly IBitCoinTransactionsRepository _bitCoinTransactionsRepository;
         private readonly ICashOperationsRepositoryClient _cashOperationsRepositoryClient;
-        private readonly ICashOutAttemptRepository _cashOutAttemptRepository;
+        private readonly ICashOutAttemptOperationsRepositoryClient _cashOutAttemptRepositoryClient;
         private readonly IClientTradesRepository _clientTradesRepository;
         private readonly IClientAccountsRepository _clientAccountsRepository;
         private readonly IPersonalDataRepository _personalDataRepository;
@@ -66,7 +66,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             ICashOperationsRepositoryClient cashOperationsRepositoryClient,
             IExchangeOperationsService exchangeOperationsService,
             SrvSlackNotifications srvSlackNotifications,
-            ICashOutAttemptRepository cashOutAttemptRepository,
+            ICashOutAttemptOperationsRepositoryClient cashOutAttemptRepositoryClient,
             ISrvEmailsFacade srvEmailsFacade,
             IClientTradesRepository clientTradesRepository,
             IClientAccountsRepository clientAccountsRepository,
@@ -92,7 +92,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             _cashOperationsRepositoryClient = cashOperationsRepositoryClient;
             _exchangeOperationsService = exchangeOperationsService;
             _srvSlackNotifications = srvSlackNotifications;
-            _cashOutAttemptRepository = cashOutAttemptRepository;
+            _cashOutAttemptRepositoryClient = cashOutAttemptRepositoryClient;
             _srvEmailsFacade = srvEmailsFacade;
             _clientTradesRepository = clientTradesRepository;
             _clientAccountsRepository = clientAccountsRepository;
@@ -274,7 +274,8 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             var swiftData = contextData.AddData?.SwiftData;
             if (swiftData != null)
             {
-                await _cashOutAttemptRepository.SetIsSettledOffchain(contextData.ClientId, swiftData.CashOutRequestId);
+                await _cashOutAttemptRepositoryClient.SetIsSettledOffchain(contextData.ClientId,
+                    swiftData.CashOutRequestId);
             }
             else
             {
