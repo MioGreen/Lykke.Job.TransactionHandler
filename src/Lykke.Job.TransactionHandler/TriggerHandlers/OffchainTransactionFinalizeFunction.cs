@@ -24,13 +24,14 @@ using Lykke.Job.TransactionHandler.Services.Notifications;
 using Lykke.JobTriggers.Triggers.Attributes;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.ExchangeOperations.Contracts;
+using Lykke.Service.OperationsRepository.Client.Abstractions.CashOperations;
 
 namespace Lykke.Job.TransactionHandler.TriggerHandlers
 {
     public class OffchainTransactionFinalizeFunction
     {
         private readonly IBitCoinTransactionsRepository _bitCoinTransactionsRepository;
-        private readonly ICashOperationsRepository _cashOperationsRepository;
+        private readonly ICashOperationsRepositoryClient _cashOperationsRepositoryClient;
         private readonly ICashOutAttemptRepository _cashOutAttemptRepository;
         private readonly IClientTradesRepository _clientTradesRepository;
         private readonly IClientAccountsRepository _clientAccountsRepository;
@@ -62,7 +63,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
         public OffchainTransactionFinalizeFunction(
             IBitCoinTransactionsRepository bitCoinTransactionsRepository,
             ILog log,
-            ICashOperationsRepository cashOperationsRepository,
+            ICashOperationsRepositoryClient cashOperationsRepositoryClient,
             IExchangeOperationsService exchangeOperationsService,
             SrvSlackNotifications srvSlackNotifications,
             ICashOutAttemptRepository cashOutAttemptRepository,
@@ -88,7 +89,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
         {
             _bitCoinTransactionsRepository = bitCoinTransactionsRepository;
             _log = log;
-            _cashOperationsRepository = cashOperationsRepository;
+            _cashOperationsRepositoryClient = cashOperationsRepositoryClient;
             _exchangeOperationsService = exchangeOperationsService;
             _srvSlackNotifications = srvSlackNotifications;
             _cashOutAttemptRepository = cashOutAttemptRepository;
@@ -159,7 +160,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
         {
             var contextData = transaction.GetContextData<IssueContextData>();
 
-            await _cashOperationsRepository.SetIsSettledAsync(contextData.ClientId, contextData.CashOperationId, true);
+            await _cashOperationsRepositoryClient.SetIsSettledAsync(contextData.ClientId, contextData.CashOperationId, true);
         }
 
         private Task FinalizeTransfer(IBitcoinTransaction transaction, IOffchainTransfer transfer)

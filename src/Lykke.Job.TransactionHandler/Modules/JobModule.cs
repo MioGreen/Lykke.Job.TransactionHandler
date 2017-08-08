@@ -66,6 +66,7 @@ using Lykke.MatchingEngine.Connector.Services;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.ExchangeOperations.Client;
 using Lykke.Service.ExchangeOperations.Contracts;
+using Lykke.Service.OperationsRepository.Client;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Lykke.Job.TransactionHandler.Modules
@@ -189,6 +190,8 @@ namespace Lykke.Job.TransactionHandler.Modules
 
             builder.RegisterType<EmailSender>().As<IEmailSender>().SingleInstance();
             builder.RegisterType<SrvEmailsFacade>().As<ISrvEmailsFacade>().SingleInstance();
+
+            builder.RegisterOperationsRepositoryClients(_settings.OperationsRepositoryClient.ServiceUrl, _log);
         }
 
         private void BindRepositories(ContainerBuilder builder)
@@ -212,11 +215,6 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.RegisterInstance<IBcnClientCredentialsRepository>(
                 new BcnClientCredentialsRepository(
                     new AzureTableStorage<BcnCredentialsRecordEntity>(_dbSettings.ClientPersonalInfoConnString, "BcnClientCredentials", _log)));
-
-            builder.RegisterInstance<ICashOperationsRepository>(
-                new CashOperationsRepository(
-                    new AzureTableStorage<CashInOutOperationEntity>(_dbSettings.ClientPersonalInfoConnString, "OperationsCash", _log),
-                    new AzureTableStorage<AzureIndex>(_dbSettings.ClientPersonalInfoConnString, "OperationsCash", _log)));
 
             builder.RegisterInstance<ICashOutAttemptRepository>(
                 new CashOutAttemptRepository(
