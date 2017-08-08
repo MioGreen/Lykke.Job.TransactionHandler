@@ -37,7 +37,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
         private readonly IClientAccountsRepository _clientAccountsRepository;
         private readonly IPersonalDataRepository _personalDataRepository;
         private readonly IOffchainTransferRepository _offchainTransferRepository;
-        private readonly ITransferEventsRepository _transferEventsRepository;
+        private readonly ITransferOperationsRepositoryClient _transferEventsRepositoryClient;
         private readonly IOffchainRequestService _offchainRequestService;
         private readonly IWalletCredentialsRepository _walletCredentialsRepository;
         private readonly IBitcoinApiClient _bitcoinApiClient;
@@ -74,7 +74,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             IOffchainTransferRepository offchainTransferRepository,
             IChronoBankService chronoBankService,
             ISrvSolarCoinHelper srvSolarCoinHelper,
-            ITransferEventsRepository transferEventsRepository,
+            ITransferOperationsRepositoryClient transferEventsRepositoryClient,
             IQuantaService quantaService,
             IOffchainRequestService offchainRequestService,
             IWalletCredentialsRepository walletCredentialsRepository,
@@ -100,7 +100,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             _offchainTransferRepository = offchainTransferRepository;
             _chronoBankService = chronoBankService;
             _srvSolarCoinHelper = srvSolarCoinHelper;
-            _transferEventsRepository = transferEventsRepository;
+            _transferEventsRepositoryClient = transferEventsRepositoryClient;
             _quantaService = quantaService;
             _offchainRequestService = offchainRequestService;
             _walletCredentialsRepository = walletCredentialsRepository;
@@ -220,7 +220,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
         {
             foreach (var transfer in contextData.Transfers)
             {
-                await _transferEventsRepository.SetIsSettledIfExistsAsync(transfer.ClientId, transfer.OperationId, true);
+                await _transferEventsRepositoryClient.SetIsSettledIfExistsAsync(transfer.ClientId, transfer.OperationId, true);
 
                 var clientData = await _personalDataRepository.GetAsync(transfer.ClientId);
 

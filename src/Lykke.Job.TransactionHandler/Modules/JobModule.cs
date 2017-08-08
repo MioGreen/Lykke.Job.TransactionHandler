@@ -220,11 +220,6 @@ namespace Lykke.Job.TransactionHandler.Modules
                 new ForwardWithdrawalRepository(
                     new AzureTableStorage<ForwardWithdrawalEntity>(_dbSettings.BalancesInfoConnString, "ForwardWithdrawal", _log)));
 
-            builder.RegisterInstance<ITransferEventsRepository>(
-                new TransferEventsRepository(
-                    new AzureTableStorage<TransferEventEntity>(_dbSettings.ClientPersonalInfoConnString, "Transfers", _log),
-                    new AzureTableStorage<AzureIndex>(_dbSettings.ClientPersonalInfoConnString, "Transfers", _log)));
-
             builder.RegisterInstance<IChronoBankCommandProducer>(
                 new SrvChronoBankCommandProducer(new AzureQueueExt(_dbSettings.ChronoBankSrvConnString, "chronobank-out")));
 

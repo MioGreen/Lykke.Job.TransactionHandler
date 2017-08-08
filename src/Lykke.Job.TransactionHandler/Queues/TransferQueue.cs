@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using AutoMapper;
 using Common;
 using Common.Log;
 using Lykke.Job.TransactionHandler.Core;
@@ -10,6 +11,8 @@ using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
 using Lykke.Job.TransactionHandler.Core.Services.Offchain;
 using Lykke.Job.TransactionHandler.Queues.Common;
 using Lykke.Job.TransactionHandler.Queues.Models;
+using Lykke.Service.OperationsRepository.Client.Abstractions.CashOperations;
+using TransferEventClient = Lykke.Service.OperationsRepository.AutorestClient.Models.TransferEvent;
 using Newtonsoft.Json;
 
 namespace Lykke.Job.TransactionHandler.Queues
@@ -20,28 +23,34 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IBitcoinCommandSender _bitcoinCommandSender;
         private readonly IWalletCredentialsRepository _walletCredentialsRepository;
         private readonly IBitCoinTransactionsRepository _bitCoinTransactionsRepository;
-        private readonly ITransferEventsRepository _transferEventsRepository;
+        private readonly ITransferOperationsRepositoryClient _transferEventsRepositoryClient;
         private readonly IOffchainRequestService _offchainRequestService;
         private readonly IClientSettingsRepository _clientSettingsRepository;
         private readonly IOffchainIgnoreRepository _offchainIgnoreRepository;
+        private readonly IMapper _mapper;
 
         public TransferQueue(AppSettings.RabbitMqSettings config, ILog log,
             IBitcoinCommandSender bitcoinCommandSender,
-            ITransferEventsRepository transferEventsRepository,
+            ITransferOperationsRepositoryClient transferEventsRepositoryClient,
             IWalletCredentialsRepository walletCredentialsRepository,
-            IBitCoinTransactionsRepository bitCoinTransactionsRepository, IOffchainRequestService offchainRequestService, IClientSettingsRepository clientSettingsRepository, IOffchainIgnoreRepository offchainIgnoreRepository)
+            IBitCoinTransactionsRepository bitCoinTransactionsRepository, 
+            IOffchainRequestService offchainRequestService,
+            IClientSettingsRepository clientSettingsRepository, 
+            IOffchainIgnoreRepository offchainIgnoreRepository,
+            IMapper mapper)
             : base(config.ExternalHost, config.Port,
                   config.ExchangeTransfer, "transactions.transfer",
                   config.Username, config.Password, log)
         {
             _log = log;
             _bitcoinCommandSender = bitcoinCommandSender;
-            _transferEventsRepository = transferEventsRepository;
+            _transferEventsRepositoryClient = transferEventsRepositoryClient;
             _walletCredentialsRepository = walletCredentialsRepository;
             _bitCoinTransactionsRepository = bitCoinTransactionsRepository;
             _offchainRequestService = offchainRequestService;
             _clientSettingsRepository = clientSettingsRepository;
             _offchainIgnoreRepository = offchainIgnoreRepository;
+            _mapper = mapper;
         }
 
         public override async Task<bool> ProcessMessage(string message)
@@ -55,21 +64,20 @@ namespace Lykke.Job.TransactionHandler.Queues
             var fromWallet = await _walletCredentialsRepository.GetAsync(queueMessage.FromClientId);
 
             //Register transfer events
+            var destTransferEvent = TransferEvent.CreateNew(queueMessage.ToClientid,
+                toWallet.MultiSig, null,
+                queueMessage.AssetId, amount, queueMessage.Id,
+                toWallet.Address, toWallet.MultiSig, state: TransactionStates.SettledOffchain);
             var destTransfer =
-                await
-                    _transferEventsRepository.RegisterAsync(
-                        TransferEvent.CreateNew(queueMessage.ToClientid,
-                        toWallet.MultiSig, null,
-                        queueMessage.AssetId, amount, queueMessage.Id,
-                        toWallet.Address, toWallet.MultiSig, state: TransactionStates.SettledOffchain));
+                await _transferEventsRepositoryClient.RegisterAsync(_mapper.Map<TransferEventClient>(destTransferEvent));
 
+            var sourceTransferEvent = TransferEvent.CreateNew(queueMessage.FromClientId,
+                fromWallet.MultiSig, null,
+                queueMessage.AssetId, -amount, queueMessage.Id,
+                fromWallet.Address, fromWallet.MultiSig, state: TransactionStates.SettledOffchain);
             var sourceTransfer =
-                await
-                    _transferEventsRepository.RegisterAsync(
-                        TransferEvent.CreateNew(queueMessage.FromClientId,
-                        fromWallet.MultiSig, null,
-                        queueMessage.AssetId, -amount, queueMessage.Id,
-                        fromWallet.Address, fromWallet.MultiSig, state: TransactionStates.SettledOffchain));
+                await _transferEventsRepositoryClient.RegisterAsync(
+                    _mapper.Map<TransferEventClient>(sourceTransferEvent));
 
             //Craete or Update transfer context
             var transaction = await _bitCoinTransactionsRepository.FindByTransactionIdAsync(queueMessage.Id);
