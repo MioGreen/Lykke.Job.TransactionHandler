@@ -51,6 +51,8 @@ namespace Lykke.Job.TransactionHandler
                 options.DefaultLykkeConfiguration("v1", "TransactionHandler API");
             });
 
+            services.AddAutofac();
+
             var builder = new ContainerBuilder();
             var appSettings = Environment.IsDevelopment()
                 ? Configuration.Get<AppSettings>()

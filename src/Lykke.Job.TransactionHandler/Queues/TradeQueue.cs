@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AutoMapper;
 using Common;
 using Common.Log;
 using Lykke.Job.TransactionHandler.Core;
@@ -17,7 +18,9 @@ using Lykke.Job.TransactionHandler.Queues.Common;
 using Lykke.Job.TransactionHandler.Queues.Models;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.Assets.Client.Models;
+using Lykke.Service.OperationsRepository.Client.Abstractions.CashOperations;
 using Newtonsoft.Json;
+using ClientTrade = Lykke.Service.OperationsRepository.AutorestClient.Models.ClientTrade;
 
 namespace Lykke.Job.TransactionHandler.Queues
 {
@@ -37,7 +40,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IWalletCredentialsRepository _walletCredentialsRepository;
         private readonly IBitCoinTransactionsRepository _bitcoinTransactionsRepository;
         private readonly IMarketOrdersRepository _marketOrdersRepository;
-        private readonly IClientTradesRepository _clientTradesRepository;
+        private readonly ITradeOperationsRepositoryClient _clientTradesRepositoryClient;
         private readonly IOffchainRequestService _offchainRequestService;
         private readonly IOffchainOrdersRepository _offchainOrdersRepository;
         private readonly IOffchainTransferRepository _offchainTransferRepository;
@@ -49,6 +52,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IEthClientEventLogs _ethClientEventLogs;
         private readonly ILog _log;
         private readonly ICachedAssetsService _assetsService;
+        private readonly IMapper _mapper;
 
         public TradeQueue(
             AppSettings.RabbitMqSettings config, 
@@ -57,7 +61,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             IWalletCredentialsRepository walletCredentialsRepository,
             IBitCoinTransactionsRepository bitcoinTransactionsRepository,
             IMarketOrdersRepository marketOrdersRepository,
-            IClientTradesRepository clientTradesRepository, 
+            ITradeOperationsRepositoryClient clientTradesRepositoryClient, 
             IOffchainRequestService offchainRequestService,
             IOffchainOrdersRepository offchainOrdersRepository, 
             IOffchainTransferRepository offchainTransferRepository,
@@ -67,7 +71,8 @@ namespace Lykke.Job.TransactionHandler.Queues
             ICachedAssetsService assetsService,
             IBcnClientCredentialsRepository bcnClientCredentialsRepository, 
             AppSettings.EthereumSettings settings,
-            IEthClientEventLogs ethClientEventLogs)
+            IEthClientEventLogs ethClientEventLogs,
+            IMapper mapper)
             : base(config.ExternalHost, config.Port,
                 config.ExchangeSwap, QueueName,
                 config.Username, config.Password, log, QueueDurable, QueueAutoDelete)
@@ -76,7 +81,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             _walletCredentialsRepository = walletCredentialsRepository;
             _bitcoinTransactionsRepository = bitcoinTransactionsRepository;
             _marketOrdersRepository = marketOrdersRepository;
-            _clientTradesRepository = clientTradesRepository;
+            _clientTradesRepositoryClient = clientTradesRepositoryClient;
             _offchainRequestService = offchainRequestService;
             _offchainOrdersRepository = offchainOrdersRepository;
             _offchainTransferRepository = offchainTransferRepository;
@@ -88,6 +93,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             _settings = settings;
             _ethClientEventLogs = ethClientEventLogs;
             _log = log;
+            _mapper = mapper;
         }
 
         public override async Task<bool> ProcessMessage(string message)
@@ -118,10 +124,13 @@ namespace Lykke.Job.TransactionHandler.Queues
                 var walletCredsMarket = await _walletCredentialsRepository.GetAsync(trade.MarketClientId);
                 var walletCredsLimit = await _walletCredentialsRepository.GetAsync(trade.LimitClientId);
 
-                var tradeRecords = await _clientTradesRepository.SaveAsync(trade.GetTradeRecords(tradeItem.Order, transactionId.ToString(),
-                    walletCredsMarket, walletCredsLimit));
+                var tradeRecordsInfo = trade.GetTradeRecords(tradeItem.Order, transactionId.ToString(),
+                    walletCredsMarket, walletCredsLimit);
+                var requestTradeRecords = _mapper.Map<IEnumerable<ClientTrade>>(tradeRecordsInfo);
+                var responseTradeRecords = await _clientTradesRepositoryClient.SaveAsync(requestTradeRecords.ToArray());
+                var tradeRecords = _mapper.Map<IEnumerable<IClientTrade>>(responseTradeRecords);
 
-                SwapContextData contextData = PrepareContextData(tradeRecords);
+                SwapContextData contextData = PrepareContextData(tradeRecords.ToArray());
 
                 await _bitcoinTransactionsRepository.CreateAsync(transactionId.ToString(), BitCoinCommands.Swap, "", contextData.ToJson(), "");
 
@@ -243,7 +252,8 @@ namespace Lykke.Job.TransactionHandler.Queues
             }
             finally
             {
-                await _clientTradesRepository.SaveAsync(clientTrades);
+                var requestClientTrades = _mapper.Map<IEnumerable<ClientTrade>>(clientTrades);
+                await _clientTradesRepositoryClient.SaveAsync(requestClientTrades.ToArray());
 
                 foreach (var item in notify)
                     await _offchainRequestService.NotifyUser(item);

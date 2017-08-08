@@ -33,7 +33,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
         private readonly IBitCoinTransactionsRepository _bitCoinTransactionsRepository;
         private readonly ICashOperationsRepositoryClient _cashOperationsRepositoryClient;
         private readonly ICashOutAttemptOperationsRepositoryClient _cashOutAttemptRepositoryClient;
-        private readonly IClientTradesRepository _clientTradesRepository;
+        private readonly ITradeOperationsRepositoryClient _clientTradesRepositoryClient;
         private readonly IClientAccountsRepository _clientAccountsRepository;
         private readonly IPersonalDataRepository _personalDataRepository;
         private readonly IOffchainTransferRepository _offchainTransferRepository;
@@ -68,7 +68,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             SrvSlackNotifications srvSlackNotifications,
             ICashOutAttemptOperationsRepositoryClient cashOutAttemptRepositoryClient,
             ISrvEmailsFacade srvEmailsFacade,
-            IClientTradesRepository clientTradesRepository,
+            ITradeOperationsRepositoryClient clientTradesRepositoryClient,
             IClientAccountsRepository clientAccountsRepository,
             IPersonalDataRepository personalDataRepository,
             IOffchainTransferRepository offchainTransferRepository,
@@ -94,7 +94,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             _srvSlackNotifications = srvSlackNotifications;
             _cashOutAttemptRepositoryClient = cashOutAttemptRepositoryClient;
             _srvEmailsFacade = srvEmailsFacade;
-            _clientTradesRepository = clientTradesRepository;
+            _clientTradesRepositoryClient = clientTradesRepositoryClient;
             _clientAccountsRepository = clientAccountsRepository;
             _personalDataRepository = personalDataRepository;
             _offchainTransferRepository = offchainTransferRepository;
@@ -313,7 +313,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
                     }
                     else
                     {
-                        await _clientTradesRepository.SetIsSettledAsync(trade.ClientId, trade.ClientTradeId, true);
+                        await _clientTradesRepositoryClient.SetIsSettledAsync(trade.ClientId, trade.ClientTradeId, true);
                     }
 
                     break;
