@@ -1,6 +1,7 @@
 ﻿using System;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
+using AutoMapper;
 using AzureStorage.Tables;
 using Common.Log;
 using Lykke.Common.ApiLibrary.Middleware;
@@ -51,7 +52,7 @@ namespace Lykke.Job.TransactionHandler
                 options.DefaultLykkeConfiguration("v1", "TransactionHandler API");
             });
 
-            services.AddAutofac();
+            services.AddAutoMapper();
 
             var builder = new ContainerBuilder();
             var appSettings = Environment.IsDevelopment()
