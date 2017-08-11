@@ -22,15 +22,15 @@
     <PackageReference Include="AutoMapper" Version="6.1.1" />
     <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="2.0.1" />
     <PackageReference Include="Lykke.Common" Version="1.1.79" />
-    <PackageReference Include="Lykke.Common.ApiLibrary" Version="1.0.10" />
-    <PackageReference Include="Lykke.JobTriggers" Version="1.1.9" />
+    <PackageReference Include="Lykke.Common.ApiLibrary" Version="1.0.11" />
+    <PackageReference Include="Lykke.JobTriggers" Version="1.1.11" />
     <PackageReference Include="Lykke.Logs" Version="1.0.20" />
     <PackageReference Include="Lykke.MatchingEngine.Connector" Version="1.0.7" />
     <PackageReference Include="Lykke.MatchingEngine.Connector.Abstractions" Version="1.0.7" />
     <PackageReference Include="Lykke.Service.Assets.Client" Version="1.0.15" />
     <PackageReference Include="Lykke.Service.ExchangeOperations.Client" Version="1.0.7" />
     <PackageReference Include="Lykke.Service.ExchangeOperations.Contracts" Version="1.0.6" />
-    <PackageReference Include="Lykke.Service.OperationsRepository.Client" Version="1.0.70" />
+    <PackageReference Include="Lykke.Service.OperationsRepository.Client" Version="1.0.77" />
     <PackageReference Include="Lykke.SettingsReader" Version="1.0.38" />
     <PackageReference Include="Lykke.SlackNotification.AzureQueue" Version="1.0.4" />
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics" Version="1.1.2" />

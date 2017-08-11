@@ -191,7 +191,8 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.RegisterType<EmailSender>().As<IEmailSender>().SingleInstance();
             builder.RegisterType<SrvEmailsFacade>().As<ISrvEmailsFacade>().SingleInstance();
 
-            builder.RegisterOperationsRepositoryClients(_settings.OperationsRepositoryClient.ServiceUrl, _log);
+            builder.RegisterOperationsRepositoryClients(_settings.OperationsRepositoryClient.ServiceUrl, _log,
+                _settings.OperationsRepositoryClient.RequestTimeout);
         }
 
         private void BindRepositories(ContainerBuilder builder)
