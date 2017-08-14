@@ -115,6 +115,7 @@ namespace Lykke.Job.TransactionHandler.Services
             public string Password { get; set; }
 
             public string ExchangeSwap { get; set; }
+            public string ExchangeLimit { get; set; }
 
             public string ExchangeCashOperation { get; set; }
             public string ExchangeTransfer { get; set; }

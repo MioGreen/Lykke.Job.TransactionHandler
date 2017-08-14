@@ -19,6 +19,8 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
         public double Price { get; set; }
         public DateTime? DetectionTime { get; set; }
         public int Confirmations { get; set; }
+        public string OppositeLimitOrderId { get; set; }
+        public bool IsLimitOrderResult { get; set; }
         public double Amount => Volume;
         public string AssetId { get; set; }
         public string BlockChainHash { get; set; }
@@ -113,6 +115,27 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
             }
         }
 
+        public static class ByOrder
+        {
+            public static string GeneratePartitionKey(string orderId)
+            {
+                return orderId;
+            }
+
+            public static string GenerateRowKey(string tradeId)
+            {
+                return tradeId;
+            }
+
+            public static ClientTradeEntity Create(IClientTrade src)
+            {
+                var entity = CreateNew(src);
+                entity.RowKey = GenerateRowKey(src.Id);
+                entity.PartitionKey = GeneratePartitionKey(src.LimitOrderId);
+                return entity;
+            }
+        }
+
         public static ClientTradeEntity CreateNew(IClientTrade src)
         {
             return new ClientTradeEntity
@@ -133,7 +156,9 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
                 Confirmations = src.Confirmations,
                 IsSettled = src.IsSettled,
                 State = src.State,
-                TransactionId = src.TransactionId
+                TransactionId = src.TransactionId,
+                IsLimitOrderResult = src.IsLimitOrderResult,
+                OppositeLimitOrderId = src.OppositeLimitOrderId
             };
         }
     }
@@ -156,10 +181,12 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
                 var insertByClientIdTask = _tableStorage.InsertAsync(byMultisig);
                 var insertbyMultisigTask = _tableStorage.InsertAsync(ClientTradeEntity.ByMultisig.Create(trade));
                 var insertbyDtTask = _tableStorage.InsertAsync(ClientTradeEntity.ByDt.Create(trade));
+                var insertByOrderId = trade.IsLimitOrderResult ? _tableStorage.InsertAsync(ClientTradeEntity.ByOrder.Create(trade)) : Task.CompletedTask;
 
                 await insertByClientIdTask;
                 await insertbyMultisigTask;
                 await insertbyDtTask;
+                await insertByOrderId;
 
                 inserted.Add(byMultisig);
             }
