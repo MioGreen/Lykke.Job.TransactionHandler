@@ -19,7 +19,8 @@ namespace Lykke.Job.TransactionHandler.Core.Services.AppNotifications
         MarginCall = 11,
         OffchainRequest = 12,
         NeedTransactionSign = 13,
-        PushTxDialog = 14
+        PushTxDialog = 14,
+        LimitOrderEvent = 15
     }
 
     public static class EventsAndEntities

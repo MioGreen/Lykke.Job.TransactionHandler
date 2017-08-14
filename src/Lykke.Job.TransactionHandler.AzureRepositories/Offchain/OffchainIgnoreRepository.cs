@@ -1,5 +1,8 @@
-﻿using System.Threading.Tasks;
+﻿using System.Collections.Generic;
+using System.Threading.Tasks;
 using AzureStorage;
+using Lykke.Job.TransactionHandler.AzureRepositories.Assets;
+using Lykke.Job.TransactionHandler.Core.Domain.Assets;
 using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
 
 namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
@@ -27,6 +30,11 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
         {
             var entity = await _storage.GetDataAsync(OffchainIgnoreEntity.GeneratePartitionKey(), client);
             return entity != null;
+        }
+
+        public async Task<IEnumerable<IOffchainIgnore>> GetIgnoredClients()
+        {
+            return await _storage.GetDataAsync(OffchainIgnoreEntity.GeneratePartitionKey());
         }
     }
 }

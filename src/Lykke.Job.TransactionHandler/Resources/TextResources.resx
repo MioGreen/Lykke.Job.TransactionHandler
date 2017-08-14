@@ -120,4 +120,28 @@
   <data name="CreditedPushText" xml:space="preserve">
     <value>Credited {0} {1}</value>
   </data>
+  <data name="LimitOrderCancelled" xml:space="preserve">
+    <value>Limit Order for {0} {1} {2} cancelled
+Price {3}{4}</value>
+  </data>
+  <data name="LimitOrderExecuted" xml:space="preserve">
+    <value>Limit Order for {0} {1} {2} executed
+Price {3}{4} volume {5} {6}</value>
+  </data>
+  <data name="LimitOrderExpired" xml:space="preserve">
+    <value>Limit Order for {0} {1} {2} expired
+Price {3}{4}</value>
+  </data>
+  <data name="LimitOrderPartiallyExecuted" xml:space="preserve">
+    <value>Limit Order for {0} {1} {2} partially executed
+Price {3}{4} volume {5} {6}</value>
+  </data>
+  <data name="LimitOrderRejected" xml:space="preserve">
+    <value>Limit Order for {0} {1} {2} rejected
+Price {3}{4}</value>
+  </data>
+  <data name="LimitOrderStarted" xml:space="preserve">
+    <value>Limit Order for {0} {1} {2} placed
+Price {3}{4}</value>
+  </data>
 </root>

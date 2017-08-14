@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
 using Common.Log;
@@ -11,12 +12,15 @@ namespace Lykke.Job.TransactionHandler.Queues.Common
     public abstract class RabbitQueue
     {
         private readonly ILog _log;
+        private bool _shouldLogMessage;
 
         protected RabbitQueue(string rabbitHost, int rabbitPort,
             string rabbitExchangeName, string rabbitQueueName,
-            string rabbitUsername, string rabbitPassword, ILog log, bool durable = true, bool autoDelete = false)
+            string rabbitUsername, string rabbitPassword, ILog log, bool durable = true, bool autoDelete = false, bool shouldLogMessage = true)
         {
             _log = log;
+            _shouldLogMessage = shouldLogMessage;
+
             var factory = new ConnectionFactory
             {
                 HostName = rabbitHost,
@@ -55,7 +59,8 @@ namespace Lykke.Job.TransactionHandler.Queues.Common
             {
                 message = Encoding.UTF8.GetString(ea.Body);
 
-                await _log.WriteInfoAsync(GetType().Name, nameof(ProcessMessage), message, "processing event");
+                if (_shouldLogMessage)
+                    await _log.WriteInfoAsync(GetType().Name, nameof(ProcessMessage), message, "processing event");
 
                 var processed = await ProcessMessage(message);
                 if (processed)
@@ -66,8 +71,9 @@ namespace Lykke.Job.TransactionHandler.Queues.Common
             }
             catch (StorageException ex)
             {
-                var writeErrorAsync = _log?.WriteErrorAsync(GetType().Name, "MessageReceived", 
-                    $"\r\n- Message: {message},\r\n- ErrorCode: {ex.RequestInformation.ExtendedErrorInformation.ErrorCode},\r\n- ErrorMessage: {ex.RequestInformation.ExtendedErrorInformation.ErrorMessage}", ex);
+                var writeErrorAsync = _log?.WriteErrorAsync(GetType().Name, "MessageReceived",
+                    $"\r\n- Message: {message},\r\n- ErrorCode: {ex.RequestInformation.ExtendedErrorInformation.ErrorCode},\r\n- ErrorMessage: {ex.RequestInformation.ExtendedErrorInformation.ErrorMessage}",
+                    ex);
                 if (writeErrorAsync != null)
                     await writeErrorAsync;
             }
