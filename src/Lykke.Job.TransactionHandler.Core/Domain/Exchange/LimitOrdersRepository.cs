@@ -4,24 +4,10 @@ using System.Threading.Tasks;
 
 namespace Lykke.Job.TransactionHandler.Core.Domain.Exchange
 {
-    public class MatchedOrder
-    {
-        public string Id { get; set; }
-        public double Volume { get; set; }
-
-        internal static MatchedOrder Create(IOrderBase orderBase, double volume)
-        {
-            return new MatchedOrder
-            {
-                Id = orderBase.Id,
-                Volume = volume
-            };
-        }
-    }
-
     public interface ILimitOrder : IOrderBase
     {
         double RemainingVolume { get; set; }
+        string ExternalId { get; set; }
     }
 
     public class LimitOrder : ILimitOrder
@@ -38,15 +24,11 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Exchange
         public double Volume { get; set; }
         public double Price { get; set; }
         public double RemainingVolume { get; set; }
+        public string ExternalId { get; set; }
     }
 
     public interface ILimitOrdersRepository
     {
         Task CreateOrUpdateAsync(ILimitOrder marketOrder);
-
-        //Task<IMarketOrder> GetAsync(string orderId);
-        //Task<IMarketOrder> GetAsync(string clientId, string orderId);
-        //Task<IEnumerable<IMarketOrder>> GetOrdersAsync(string clientId);
-        //Task<IEnumerable<IMarketOrder>> GetOrdersAsync(IEnumerable<string> orderIds);
     }
 }

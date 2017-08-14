@@ -26,7 +26,7 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Exchange
             public static LimitOrderEntity Create(ILimitOrder limitOrder)
             {
                 var entity = CreateNew(limitOrder);
-                entity.RowKey = GenerateRowKey(limitOrder.Id);
+                entity.RowKey = GenerateRowKey(limitOrder.ExternalId);
                 entity.PartitionKey = GeneratePartitionKey();
                 return entity;
             }
@@ -47,7 +47,7 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Exchange
             public static LimitOrderEntity Create(ILimitOrder limitOrder)
             {
                 var entity = CreateNew(limitOrder);
-                entity.RowKey = GenerateRowKey(limitOrder.Id);
+                entity.RowKey = GenerateRowKey(limitOrder.ExternalId);
                 entity.PartitionKey = GeneratePartitionKey(limitOrder.ClientId);
                 return entity;
             }
@@ -65,7 +65,8 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Exchange
                 Status = limitOrder.Status,
                 Straight = limitOrder.Straight,
                 Volume = limitOrder.Volume,
-                RemainingVolume = limitOrder.RemainingVolume
+                RemainingVolume = limitOrder.RemainingVolume,
+                ExternalId = limitOrder.ExternalId
             };
         }
 
@@ -82,6 +83,7 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Exchange
         public string ClientId { get; set; }
 
         public double RemainingVolume { get; set; }
+        public string ExternalId { get; set; }
     }
 
     public class LimitOrdersRepository : ILimitOrdersRepository
@@ -105,7 +107,7 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Exchange
             if (status == OrderStatus.InOrderBook || status == OrderStatus.Processing)
                 await _tableStorage.InsertOrMergeAsync(byClientEntity);
             else
-                await _tableStorage.DeleteAsync(LimitOrderEntity.ByClientId.GeneratePartitionKey(limitOrder.ClientId), limitOrder.Id);
+                await _tableStorage.DeleteAsync(LimitOrderEntity.ByClientId.GeneratePartitionKey(limitOrder.ClientId), limitOrder.ExternalId);
         }
     }
 }
