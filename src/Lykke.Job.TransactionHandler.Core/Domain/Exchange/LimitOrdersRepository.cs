@@ -7,7 +7,7 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Exchange
     public interface ILimitOrder : IOrderBase
     {
         double RemainingVolume { get; set; }
-        string ExternalId { get; set; }
+        string MatchingId { get; set; }
     }
 
     public class LimitOrder : ILimitOrder
@@ -24,7 +24,7 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Exchange
         public double Volume { get; set; }
         public double Price { get; set; }
         public double RemainingVolume { get; set; }
-        public string ExternalId { get; set; }
+        public string MatchingId { get; set; }
     }
 
     public interface ILimitOrdersRepository
