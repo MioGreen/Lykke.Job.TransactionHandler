@@ -165,7 +165,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             var executed = aggregatedTransfers.FirstOrDefault(x => x.ClientId == clientId && x.AssetId == receivedAsset);
 
             await _offchainRequestService.CreateOffchainRequestAndNotify(executed.TransferId, clientId,
-                executed.AssetId, executed.Amount, order.ExternalId, OffchainTransferType.FromHub);
+                executed.AssetId, executed.Amount, order.Id, OffchainTransferType.FromHub);
         }
 
         private async Task SendPush(IEnumerable<AggregatedTransfer> aggregatedTransfers, ILimitOrder order, OrderStatus status)
@@ -233,7 +233,7 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                 //return unused volume
                 await _offchainRequestService.CreateOffchainRequestAndNotify(Guid.NewGuid().ToString(), order.ClientId,
-                    neededAsset, (decimal)remainigVolume, order.ExternalId, OffchainTransferType.FromHub);
+                    neededAsset, (decimal)remainigVolume, order.Id, OffchainTransferType.FromHub);
             }
         }
 
@@ -245,7 +245,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             var order = limitOrderWithTrades.Order;
             var type = order.Volume > 0 ? OrderType.Buy : OrderType.Sell;
             var assetPair = await _assetsService.TryGetAssetPairAsync(order.AssetPairId);
-            await _limitTradeEventsRepository.CreateEvent(order.ExternalId, order.ClientId, type, order.Volume,
+            await _limitTradeEventsRepository.CreateEvent(order.Id, order.ClientId, type, order.Volume,
                 assetPair?.BaseAssetId, order.AssetPairId, order.Price, status);
         }
 

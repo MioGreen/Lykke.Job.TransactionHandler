@@ -24,11 +24,11 @@ namespace Lykke.Job.TransactionHandler.Queues.Models
 
         public class LimitOrder : ILimitOrder
         {
-            [JsonProperty("id")]
+            [JsonProperty("externalId")]
             public string Id { get; set; }
 
-            [JsonProperty("externalId")]
-            public string ExternalId { get; set; }
+            [JsonProperty("id")]
+            public string MatchingId { get; set; }
 
             [JsonProperty("assetPairId")]
             public string AssetPairId { get; set; }
@@ -141,7 +141,7 @@ namespace Lykke.Job.TransactionHandler.Queues.Models
             {
                 DateTime = trade.Timestamp,
                 Price = trade.Price,
-                LimitOrderId = limitOrder.ExternalId,
+                LimitOrderId = limitOrder.Id,
                 OppositeLimitOrderId = trade.OppositeOrderId,
                 TransactionId = btcTransactionId,
                 IsLimitOrderResult = true
