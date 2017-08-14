@@ -19,6 +19,7 @@ using Lykke.Job.TransactionHandler.Core.Services.Offchain;
 using Lykke.Job.TransactionHandler.Queues.Common;
 using Lykke.Job.TransactionHandler.Queues.Models;
 using Lykke.Job.TransactionHandler.Resources;
+using Lykke.Job.TransactionHandler.Services;
 using Lykke.Service.Assets.Client.Custom;
 using Newtonsoft.Json;
 
