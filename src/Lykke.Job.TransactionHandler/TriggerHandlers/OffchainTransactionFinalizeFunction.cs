@@ -123,7 +123,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
                 return;
 
             var transactionId =
-                transfer.Type == OffchainTransferType.FromClient || transfer.Type == OffchainTransferType.FromHub
+                transfer.Type == OffchainTransferType.FromClient || transfer.Type == OffchainTransferType.FromClientLimit || transfer.Type == OffchainTransferType.FromHub
                     ? transfer.OrderId
                     : transfer.Id;
 
