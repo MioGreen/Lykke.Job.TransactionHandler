@@ -66,7 +66,14 @@ namespace Lykke.Job.TransactionHandler.Services
 
             public IPEndPoint GetClientIpEndPoint(bool useInternal = false)
             {
-                return new IPEndPoint(IPAddress.Parse(useInternal ? InternalHost : Host), Port);
+                string host = useInternal ? InternalHost : Host;
+
+                IPAddress ipAddress;
+                if (IPAddress.TryParse(host, out ipAddress))
+                    return new IPEndPoint(ipAddress, Port);
+
+                var addresses = Dns.GetHostAddressesAsync(host).Result;
+                return new IPEndPoint(addresses[0], Port);
             }
         }
 
