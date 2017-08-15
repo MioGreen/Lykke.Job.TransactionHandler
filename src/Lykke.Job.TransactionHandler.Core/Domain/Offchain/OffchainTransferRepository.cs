@@ -15,7 +15,8 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Offchain
         CashinToClient = 6,
         OffchainCashout = 7,
         HubCashout = 8,
-        DirectTransferFromClient = 9
+        DirectTransferFromClient = 9,
+        FromClientLimit = 1,
     }
 
     public interface IOffchainTransfer

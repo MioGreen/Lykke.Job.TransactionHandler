@@ -36,7 +36,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private const bool QueueDurable = true;
         private const bool QueueAutoDelete = false;
 #endif
-        
+
         private readonly IWalletCredentialsRepository _walletCredentialsRepository;
         private readonly IBitCoinTransactionsRepository _bitcoinTransactionsRepository;
         private readonly IOffchainRequestService _offchainRequestService;
@@ -115,7 +115,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                         break;
                     case OrderStatus.Processing:
                     case OrderStatus.Matched:
-                        await ProcessTrades(limitOrderWithTrades);
+                        await ProcessTrades(aggregated, limitOrderWithTrades);
                         await SendMoney(aggregated, limitOrderWithTrades.Order);
                         break;
                     case OrderStatus.Dust:
@@ -135,22 +135,45 @@ namespace Lykke.Job.TransactionHandler.Queues
             return true;
         }
 
-        private async Task ProcessTrades(LimitQueueItem.LimitOrderWithTrades limitOrderWithTrades)
+        private async Task ProcessTrades(List<AggregatedTransfer> operations, LimitQueueItem.LimitOrderWithTrades limitOrderWithTrades)
         {
-            var idx = 0;
-            foreach (var trade in limitOrderWithTrades.Trades)
+            if (limitOrderWithTrades.Trades.Count == 0)
+                return;
+
+            var walletCredsClientA = await _walletCredentialsRepository.GetAsync(limitOrderWithTrades.Trades[0].ClientId);
+            var walletCredsClientB = await _walletCredentialsRepository.GetAsync(limitOrderWithTrades.Trades[1].OppositeClientId);
+
+            var trades = limitOrderWithTrades.ToDomainOffchain(limitOrderWithTrades.Order.Id, walletCredsClientA, walletCredsClientB);
+
+            await _clientTradesRepository.SaveAsync(trades);
+
+            var currentTransaction = await _bitcoinTransactionsRepository.FindByTransactionIdAsync(limitOrderWithTrades.Order.Id);
+
+            var contextData = new SwapOffchainContextData();
+
+            if (!string.IsNullOrWhiteSpace(currentTransaction?.ContextData))
+                contextData = JsonConvert.DeserializeObject<SwapOffchainContextData>(currentTransaction?.ContextData);
+
+            foreach (var operation in operations.Where(x => x.ClientId == limitOrderWithTrades.Order.ClientId))
             {
-                trade.Timestamp = trade.Timestamp.AddMilliseconds(idx++);
+                var trade = trades.FirstOrDefault(x => x.ClientId == operation.ClientId && x.AssetId == operation.AssetId && Math.Abs(x.Amount - (double)operation.Amount) < 0.00000001);
 
-                var transactionId = Guid.NewGuid();
-
-                var walletCredsClientA = await _walletCredentialsRepository.GetAsync(trade.ClientId);
-                var walletCredsClientB = await _walletCredentialsRepository.GetAsync(trade.OppositeClientId);
-
-                var tradeRecordsInfo = trade.GetTradeRecords(limitOrderWithTrades.Order, transactionId.ToString(), walletCredsClientA, walletCredsClientB);
-
-                await _clientTradesRepository.SaveAsync(tradeRecordsInfo);
+                contextData.Operations.Add(new SwapOffchainContextData.Operation()
+                {
+                    TransactionId = operation.TransferId,
+                    Amount = operation.Amount,
+                    ClientId = operation.ClientId,
+                    AssetId = operation.AssetId,
+                    ClientTradeId = trade?.Id
+                });
             }
+
+            if (currentTransaction == null)
+                await _bitcoinTransactionsRepository.CreateAsync(limitOrderWithTrades.Order.Id,
+                    BitCoinCommands.SwapOffchain, "", contextData.ToJson(), "");
+            else
+                await _bitcoinTransactionsRepository.UpdateAsync(limitOrderWithTrades.Order.Id, "",
+                    contextData.ToJson(), "");
         }
 
         private async Task SendMoney(IEnumerable<AggregatedTransfer> aggregatedTransfers, ILimitOrder order)
@@ -159,11 +182,8 @@ namespace Lykke.Job.TransactionHandler.Queues
                 return;
 
             var clientId = order.ClientId;
-            var type = order.Volume > 0 ? OrderType.Buy : OrderType.Sell;
-            var assetPair = await _assetsService.TryGetAssetPairAsync(order.AssetPairId);
-            var receivedAsset = type == OrderType.Buy ? assetPair.BaseAssetId : assetPair.QuotingAssetId;
 
-            var executed = aggregatedTransfers.FirstOrDefault(x => x.ClientId == clientId && x.AssetId == receivedAsset);
+            var executed = aggregatedTransfers.FirstOrDefault(x => x.ClientId == clientId && x.Amount > 0);
 
             await _offchainRequestService.CreateOffchainRequestAndNotify(executed.TransferId, clientId,
                 executed.AssetId, executed.Amount, order.Id, OffchainTransferType.FromHub);
@@ -173,7 +193,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         {
             if (await IsClientTrusted(order.ClientId))
                 return;
-            
+
             var clientId = order.ClientId;
             var type = order.Volume > 0 ? OrderType.Buy : OrderType.Sell;
             var typeString = type.ToString().ToLower();
