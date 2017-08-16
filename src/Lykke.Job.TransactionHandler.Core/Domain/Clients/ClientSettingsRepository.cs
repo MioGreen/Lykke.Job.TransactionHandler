@@ -13,7 +13,10 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Clients
             {
                 if (typeof(T) == typeof(IsOffchainUserSettings))
                     return IsOffchainUserSettings.CreateDefault() as T;
-                
+
+                if (typeof(T) == typeof(PushNotificationsSettings))
+                    return PushNotificationsSettings.CreateDefault() as T;
+
                 return new T();
             }
         }
