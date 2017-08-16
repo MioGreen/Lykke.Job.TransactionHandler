@@ -199,31 +199,35 @@ namespace Lykke.Job.TransactionHandler.Queues
             var assetPair = await _assetsService.TryGetAssetPairAsync(order.AssetPairId);
             var neededAsset = type == OrderType.Buy ? assetPair.QuotingAssetId : assetPair.BaseAssetId;
             var receivedAsset = type == OrderType.Buy ? assetPair.BaseAssetId : assetPair.QuotingAssetId;
-
-            var executedSum = aggregatedTransfers.Where(x => x.ClientId == clientId && x.AssetId == receivedAsset).Sum(x => x.Amount);
+            var volume = Math.Abs(order.Volume);
+            var remainingVolume = Math.Abs(order.RemainingVolume);
+            var executedSum = Math.Abs(aggregatedTransfers.Where(x => x.ClientId == clientId && x.AssetId == receivedAsset)
+                                .Select(x=>x.Amount)
+                                .DefaultIfEmpty(0)
+                                .Sum());
 
             string msg;
 
             switch (status)
             {
                 case OrderStatus.InOrderBook:
-                    msg = string.Format(TextResources.LimitOrderStarted, typeString, order.AssetPairId, order.Volume, order.Price, neededAsset);
+                    msg = string.Format(TextResources.LimitOrderStarted, typeString, order.AssetPairId, volume, order.Price, neededAsset);
                     break;
                 case OrderStatus.Cancelled:
-                    msg = string.Format(TextResources.LimitOrderCancelled, typeString, order.AssetPairId, order.Volume, order.Price, neededAsset);
+                    msg = string.Format(TextResources.LimitOrderCancelled, typeString, order.AssetPairId, volume, order.Price, neededAsset);
                     break;
                 case OrderStatus.Processing:
-                    msg = string.Format(TextResources.LimitOrderPartiallyExecuted, typeString, order.AssetPairId, order.RemainingVolume, order.Price, neededAsset, executedSum, receivedAsset);
+                    msg = string.Format(TextResources.LimitOrderPartiallyExecuted, typeString, order.AssetPairId, remainingVolume, order.Price, neededAsset, executedSum, receivedAsset);
                     break;
                 case OrderStatus.Matched:
-                    msg = string.Format(TextResources.LimitOrderExecuted, typeString, order.AssetPairId, order.RemainingVolume, order.Price, neededAsset, executedSum, receivedAsset);
+                    msg = string.Format(TextResources.LimitOrderExecuted, typeString, order.AssetPairId, remainingVolume, order.Price, neededAsset, executedSum, receivedAsset);
                     break;
                 case OrderStatus.Dust:
                 case OrderStatus.NoLiquidity:
                 case OrderStatus.NotEnoughFunds:
                 case OrderStatus.ReservedVolumeGreaterThanBalance:
                 case OrderStatus.UnknownAsset:
-                    msg = string.Format(TextResources.LimitOrderRejected, typeString, order.AssetPairId, order.Volume, order.Price, neededAsset);
+                    msg = string.Format(TextResources.LimitOrderRejected, typeString, order.AssetPairId, volume, order.Price, neededAsset);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(OrderStatus));
