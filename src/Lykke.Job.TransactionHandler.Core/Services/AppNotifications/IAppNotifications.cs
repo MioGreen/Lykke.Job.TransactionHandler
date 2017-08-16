@@ -45,6 +45,8 @@ namespace Lykke.Job.TransactionHandler.Core.Services.AppNotifications
         public const string Offchain = "Offchain";
         public const string OffchainRequest = "OffchainRequest";
 
+        public const string LimitOrderEvent = "LimitOrderEvent";
+
         public static string GetEntity(NotificationType notification)
         {
             switch (notification)
@@ -67,6 +69,8 @@ namespace Lykke.Job.TransactionHandler.Core.Services.AppNotifications
                     return NeedTransactionSign;
                 case NotificationType.OffchainRequest:
                     return Offchain;
+                case NotificationType.LimitOrderEvent:
+                    return LimitOrderEvent;
                 default:
                     throw new ArgumentException("Unknown notification");
             }
@@ -100,6 +104,8 @@ namespace Lykke.Job.TransactionHandler.Core.Services.AppNotifications
                     return NeedTransactionSign;
                 case NotificationType.PushTxDialog:
                     return PushTxDialog;
+                case NotificationType.LimitOrderEvent:
+                    return LimitOrderEvent;
                 default:
                     throw new ArgumentException("Unknown notification");
             }
