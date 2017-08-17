@@ -39,6 +39,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IWalletCredentialsRepository _walletCredentialsRepository;
         private readonly IBitCoinTransactionsRepository _bitcoinTransactionsRepository;
         private readonly IOffchainRequestService _offchainRequestService;
+        private readonly IOffchainOrdersRepository _offchainOrdersRepository;
         private readonly IClientSettingsRepository _clientSettingsRepository;
         private readonly IClientAccountsRepository _clientAccountsRepository;
         private readonly IAppNotifications _appNotifications;
@@ -66,7 +67,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             IBcnClientCredentialsRepository bcnClientCredentialsRepository,
             AppSettings.EthereumSettings settings,
             IEthClientEventLogs ethClientEventLogs,
-            CachedDataDictionary<string, IOffchainIgnore> offchainIgnoreDictionary, ILimitOrdersRepository limitOrdersRepository, IClientTradesRepository clientTradesRepository, ILimitTradeEventsRepository limitTradeEventsRepository, IClientSettingsRepository clientSettingsRepository, IAppNotifications appNotifications, IClientAccountsRepository clientAccountsRepository)
+            CachedDataDictionary<string, IOffchainIgnore> offchainIgnoreDictionary, ILimitOrdersRepository limitOrdersRepository, IClientTradesRepository clientTradesRepository, ILimitTradeEventsRepository limitTradeEventsRepository, IClientSettingsRepository clientSettingsRepository, IAppNotifications appNotifications, IClientAccountsRepository clientAccountsRepository, IOffchainOrdersRepository offchainOrdersRepository)
             : base(config.ExternalHost, config.Port,
                 config.ExchangeLimit, QueueName,
                 config.Username, config.Password, log, QueueDurable, QueueAutoDelete, false)
@@ -88,6 +89,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             _clientSettingsRepository = clientSettingsRepository;
             _appNotifications = appNotifications;
             _clientAccountsRepository = clientAccountsRepository;
+            _offchainOrdersRepository = offchainOrdersRepository;
         }
 
         public override async Task<bool> ProcessMessage(string message)
@@ -97,9 +99,11 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             foreach (var limitOrderWithTrades in tradeItem.Orders)
             {
-                await _limitOrdersRepository.CreateOrUpdateAsync(limitOrderWithTrades.Order);
+                var meOrder = limitOrderWithTrades.Order;
 
-                var status = (OrderStatus)Enum.Parse(typeof(OrderStatus), limitOrderWithTrades.Order.Status);
+                await _limitOrdersRepository.CreateOrUpdateAsync(meOrder);
+
+                var status = (OrderStatus)Enum.Parse(typeof(OrderStatus), meOrder.Status);
 
                 var aggregated = AggregateSwaps(limitOrderWithTrades.Trades);
 
@@ -115,7 +119,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                     case OrderStatus.Processing:
                     case OrderStatus.Matched:
                         await ProcessTrades(aggregated, limitOrderWithTrades);
-                        await SendMoney(aggregated, limitOrderWithTrades.Order);
+                        await SendMoney(aggregated, meOrder);
                         break;
                     case OrderStatus.Dust:
                     case OrderStatus.NoLiquidity:
@@ -128,7 +132,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                         throw new ArgumentOutOfRangeException(nameof(OrderStatus));
                 }
 
-                await SendPush(aggregated, limitOrderWithTrades.Order, status);
+                await SendPush(aggregated, meOrder, status);
             }
 
             return true;
@@ -202,7 +206,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             var volume = Math.Abs(order.Volume);
             var remainingVolume = Math.Abs(order.RemainingVolume);
             var executedSum = Math.Abs(aggregatedTransfers.Where(x => x.ClientId == clientId && x.AssetId == receivedAsset)
-                                .Select(x=>x.Amount)
+                                .Select(x => x.Amount)
                                 .DefaultIfEmpty(0)
                                 .Sum());
 

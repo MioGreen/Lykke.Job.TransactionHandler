@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
 
 namespace Lykke.Job.TransactionHandler.Core.Domain.Exchange
 {

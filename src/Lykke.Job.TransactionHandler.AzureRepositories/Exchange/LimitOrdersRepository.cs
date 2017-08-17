@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using AzureStorage;
 using Lykke.Job.TransactionHandler.Core.Domain.Exchange;
+using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
 using Microsoft.WindowsAzure.Storage.Table;
 
 namespace Lykke.Job.TransactionHandler.AzureRepositories.Exchange

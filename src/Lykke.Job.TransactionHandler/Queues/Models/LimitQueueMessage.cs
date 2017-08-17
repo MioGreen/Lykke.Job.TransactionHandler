@@ -56,7 +56,7 @@ namespace Lykke.Job.TransactionHandler.Queues.Models
             [JsonProperty("remainingVolume")]
             public double RemainingVolume { get; set; }
 
-            public bool Straight { get; set; }
+            public bool Straight { get; set; } = true;
         }
 
         public class LimitTradeInfo
