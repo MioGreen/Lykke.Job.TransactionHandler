@@ -14,6 +14,7 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Offchain
         string Asset { get; set; }
         bool Straight { get; set; }
         decimal Price { get; set; }
+        bool IsLimit { get; set; }
     }
 
     public interface IOffchainOrdersRepository
