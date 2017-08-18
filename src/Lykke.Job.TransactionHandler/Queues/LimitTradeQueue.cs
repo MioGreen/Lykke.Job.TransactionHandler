@@ -252,16 +252,25 @@ namespace Lykke.Job.TransactionHandler.Queues
                 return;
 
             var order = limitOrderWithTrades.Order;
-            var remainigVolume = order.RemainingVolume;
+            var remainigVolume = Math.Abs(order.RemainingVolume);
             var type = order.Volume > 0 ? OrderType.Buy : OrderType.Sell;
             if (remainigVolume > 0)
             {
                 var assetPair = await _assetsService.TryGetAssetPairAsync(order.AssetPairId);
                 var neededAsset = type == OrderType.Buy ? assetPair.QuotingAssetId : assetPair.BaseAssetId;
+                var neededAmount = remainigVolume;
+
+                if (type == OrderType.Buy)
+                {
+                    neededAmount = remainigVolume * order.Price;
+                }
+
+                var asset = await _assetsService.TryGetAssetAsync(neededAsset);
+                neededAmount = neededAmount.TruncateDecimalPlaces(asset.Accuracy);
 
                 //return unused volume
                 await _offchainRequestService.CreateOffchainRequestAndNotify(Guid.NewGuid().ToString(), order.ClientId,
-                    neededAsset, (decimal)remainigVolume, order.Id, OffchainTransferType.FromHub);
+                    neededAsset, (decimal)neededAmount, order.Id, OffchainTransferType.FromHub);
             }
         }
 

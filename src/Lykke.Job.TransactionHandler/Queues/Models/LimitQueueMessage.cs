@@ -132,10 +132,10 @@ namespace Lykke.Job.TransactionHandler.Queues.Models
             depositAssetRecord.AddressTo = withdrawAssetRecord.AddressTo = mutlisig;
             depositAssetRecord.Multisig = withdrawAssetRecord.Multisig = mutlisig;
 
-            depositAssetRecord.Amount = oppositeLimitVolume * -1;
+            depositAssetRecord.Amount = oppositeLimitVolume;
             depositAssetRecord.AssetId = trade.OppositeAsset;
 
-            withdrawAssetRecord.Amount = limitVolume;
+            withdrawAssetRecord.Amount = -1 * limitVolume;
             withdrawAssetRecord.AssetId = trade.Asset;
 
             depositAssetRecord.Id = Utils.GenerateRecordId(depositAssetRecord.DateTime);
