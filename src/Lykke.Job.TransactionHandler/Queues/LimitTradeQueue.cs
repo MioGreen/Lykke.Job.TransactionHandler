@@ -20,6 +20,7 @@ using Lykke.Job.TransactionHandler.Queues.Common;
 using Lykke.Job.TransactionHandler.Queues.Models;
 using Lykke.Job.TransactionHandler.Resources;
 using Lykke.Service.Assets.Client.Custom;
+using Lykke.Service.Assets.Client.Models;
 using Newtonsoft.Json;
 
 namespace Lykke.Job.TransactionHandler.Queues
@@ -118,8 +119,8 @@ namespace Lykke.Job.TransactionHandler.Queues
                         break;
                     case OrderStatus.Processing:
                     case OrderStatus.Matched:
-                        await ProcessTrades(aggregated, limitOrderWithTrades);
-                        await SendMoney(aggregated, meOrder);
+                        var trades = await ProcessTrades(aggregated, limitOrderWithTrades);
+                        await SendMoney(trades, aggregated, meOrder);
                         break;
                     case OrderStatus.Dust:
                     case OrderStatus.NoLiquidity:
@@ -138,10 +139,10 @@ namespace Lykke.Job.TransactionHandler.Queues
             return true;
         }
 
-        private async Task ProcessTrades(List<AggregatedTransfer> operations, LimitQueueItem.LimitOrderWithTrades limitOrderWithTrades)
+        private async Task<IClientTrade[]> ProcessTrades(List<AggregatedTransfer> operations, LimitQueueItem.LimitOrderWithTrades limitOrderWithTrades)
         {
             if (limitOrderWithTrades.Trades.Count == 0)
-                return;
+                return new IClientTrade[0];
 
             var walletCredsClientA = await _walletCredentialsRepository.GetAsync(limitOrderWithTrades.Trades[0].ClientId);
             var walletCredsClientB = await _walletCredentialsRepository.GetAsync(limitOrderWithTrades.Trades[0].OppositeClientId);
@@ -177,9 +178,11 @@ namespace Lykke.Job.TransactionHandler.Queues
             else
                 await _bitcoinTransactionsRepository.UpdateAsync(limitOrderWithTrades.Order.Id, "",
                     contextData.ToJson(), "");
+
+            return trades;
         }
 
-        private async Task SendMoney(IEnumerable<AggregatedTransfer> aggregatedTransfers, ILimitOrder order)
+        private async Task SendMoney(IClientTrade[] clientTrades, IEnumerable<AggregatedTransfer> aggregatedTransfers, ILimitOrder order)
         {
             if (await IsClientTrusted(order.ClientId))
                 return;
@@ -187,6 +190,13 @@ namespace Lykke.Job.TransactionHandler.Queues
             var clientId = order.ClientId;
 
             var executed = aggregatedTransfers.FirstOrDefault(x => x.ClientId == clientId && x.Amount > 0);
+
+            var asset = await _assetsService.TryGetAssetAsync(executed.AssetId);
+            if (asset.Blockchain == Blockchain.Ethereum)
+            {
+                await ProcessEthBuy(executed, asset, clientTrades, order.Id);
+                return;
+            }
 
             await _offchainRequestService.CreateOffchainRequestAndNotify(executed.TransferId, clientId,
                 executed.AssetId, executed.Amount, order.Id, OffchainTransferType.FromHub);

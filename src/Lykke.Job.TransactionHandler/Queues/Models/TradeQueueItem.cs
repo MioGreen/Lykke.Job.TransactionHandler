@@ -175,7 +175,6 @@ namespace Lykke.Job.TransactionHandler.Queues.Models
             var result = new List<IClientTrade>();
 
             result.AddRange(CreateTradeRecordsForClientWithVolumes(trade, item.Order, item.Order.ExternalId, walletCredentialsMarket, walletCredentialsLimit, true, marketVolume, limitVolume));
-            result.AddRange(CreateTradeRecordsForClientWithVolumes(trade, item.Order, item.Order.ExternalId, walletCredentialsMarket, walletCredentialsLimit, false, marketVolume, limitVolume));
 
             foreach (var clientTrade in result)
             {
