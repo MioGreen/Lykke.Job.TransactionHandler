@@ -258,6 +258,10 @@ namespace Lykke.Job.TransactionHandler.Modules
                 new ClientSettingsRepository(
                     new AzureTableStorage<ClientSettingsEntity>(_dbSettings.ClientPersonalInfoConnString, "TraderSettings", _log)));
 
+            builder.RegisterInstance<IClientCacheRepository>(
+                new ClientCacheRepository(
+                    new AzureTableStorage<ClientCacheEntity>(_dbSettings.ClientPersonalInfoConnString, "ClientCache", _log)));
+
             builder.RegisterInstance<IPersonalDataRepository>(
                 new PersonalDataRepository(
                     new AzureTableStorage<PersonalDataEntity>(_dbSettings.ClientPersonalInfoConnString, "PersonalData", _log)));

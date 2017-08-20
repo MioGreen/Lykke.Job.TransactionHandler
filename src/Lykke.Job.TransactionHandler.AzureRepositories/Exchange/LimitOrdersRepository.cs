@@ -110,5 +110,25 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Exchange
             else
                 await _tableStorage.DeleteAsync(LimitOrderEntity.ByClientId.GeneratePartitionKey(limitOrder.ClientId), limitOrder.Id);
         }
+
+        public async Task<ILimitOrder> GetOrderAsync(string orderId)
+        {
+            return await _tableStorage.GetDataAsync(LimitOrderEntity.ByOrderId.GeneratePartitionKey(), orderId);
+        }
+
+        public async Task<IEnumerable<ILimitOrder>> GetOrdersAsync(IEnumerable<string> orderIds)
+        {
+            var partitionKey = LimitOrderEntity.ByOrderId.GeneratePartitionKey();
+            orderIds = orderIds.Select(LimitOrderEntity.ByOrderId.GenerateRowKey);
+
+            return await _tableStorage.GetDataAsync(partitionKey, orderIds);
+        }
+
+        public async Task<IEnumerable<ILimitOrder>> GetActiveOrdersAsync(string clientId)
+        {
+            var partitionKey = LimitOrderEntity.ByClientId.GeneratePartitionKey(clientId);
+
+            return await _tableStorage.GetDataAsync(partitionKey);
+        }
     }
 }
