@@ -56,7 +56,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IClientTradesRepository _clientTradesRepository;
         private readonly ILimitTradeEventsRepository _limitTradeEventsRepository;
         private readonly IClientCacheRepository _clientCacheRepository;
-        
+
         public LimitTradeQueue(
             AppSettings.RabbitMqSettings config,
             ILog log,
@@ -115,11 +115,8 @@ namespace Lykke.Job.TransactionHandler.Queues
                     switch (status)
                     {
                         case OrderStatus.InOrderBook:
-                            await CreateEvent(limitOrderWithTrades, status);
-                            break;
                         case OrderStatus.Cancelled:
                             await CreateEvent(limitOrderWithTrades, status);
-                            await ReturnRemainingVolume(limitOrderWithTrades);
                             break;
                         case OrderStatus.Processing:
                         case OrderStatus.Matched:
@@ -131,11 +128,14 @@ namespace Lykke.Job.TransactionHandler.Queues
                         case OrderStatus.NotEnoughFunds:
                         case OrderStatus.ReservedVolumeGreaterThanBalance:
                         case OrderStatus.UnknownAsset:
-                            await ReturnRemainingVolume(limitOrderWithTrades);
+                            await _log.WriteInfoAsync(nameof(LimitTradeQueue), nameof(ProcessMessage), limitOrderWithTrades.ToJson(), "order rejected");
                             break;
                         default:
                             throw new ArgumentOutOfRangeException(nameof(OrderStatus));
                     }
+
+                    if (status == OrderStatus.Cancelled || status == OrderStatus.Matched)
+                        await ReturnRemainingVolume(limitOrderWithTrades);
 
                     await SendPush(aggregated, meOrder, status);
 
@@ -217,7 +217,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         {
             if (await IsClientTrusted(order.ClientId))
                 return;
-            
+
             var clientId = order.ClientId;
             var type = order.Volume > 0 ? OrderType.Buy : OrderType.Sell;
             var typeString = type.ToString().ToLower();
