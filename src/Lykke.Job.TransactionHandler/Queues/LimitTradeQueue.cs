@@ -21,6 +21,7 @@ using Lykke.Job.TransactionHandler.Queues.Models;
 using Lykke.Job.TransactionHandler.Resources;
 using Lykke.Job.TransactionHandler.Services;
 using Lykke.Service.Assets.Client.Custom;
+using Lykke.Service.Assets.Client.Models;
 using Newtonsoft.Json;
 
 namespace Lykke.Job.TransactionHandler.Queues
@@ -55,6 +56,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly ILimitOrdersRepository _limitOrdersRepository;
         private readonly IClientTradesRepository _clientTradesRepository;
         private readonly ILimitTradeEventsRepository _limitTradeEventsRepository;
+        private readonly IClientCacheRepository _clientCacheRepository;
 
         public LimitTradeQueue(
             AppSettings.RabbitMqSettings config,
@@ -68,7 +70,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             IBcnClientCredentialsRepository bcnClientCredentialsRepository,
             AppSettings.EthereumSettings settings,
             IEthClientEventLogs ethClientEventLogs,
-            CachedDataDictionary<string, IOffchainIgnore> offchainIgnoreDictionary, ILimitOrdersRepository limitOrdersRepository, IClientTradesRepository clientTradesRepository, ILimitTradeEventsRepository limitTradeEventsRepository, IClientSettingsRepository clientSettingsRepository, IAppNotifications appNotifications, IClientAccountsRepository clientAccountsRepository, IOffchainOrdersRepository offchainOrdersRepository)
+            CachedDataDictionary<string, IOffchainIgnore> offchainIgnoreDictionary, ILimitOrdersRepository limitOrdersRepository, IClientTradesRepository clientTradesRepository, ILimitTradeEventsRepository limitTradeEventsRepository, IClientSettingsRepository clientSettingsRepository, IAppNotifications appNotifications, IClientAccountsRepository clientAccountsRepository, IOffchainOrdersRepository offchainOrdersRepository, IClientCacheRepository clientCacheRepository)
             : base(config.ExternalHost, config.Port,
                 config.ExchangeLimit, QueueName,
                 config.Username, config.Password, log, QueueDurable, QueueAutoDelete, false)
@@ -91,6 +93,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             _appNotifications = appNotifications;
             _clientAccountsRepository = clientAccountsRepository;
             _offchainOrdersRepository = offchainOrdersRepository;
+            _clientCacheRepository = clientCacheRepository;
         }
 
         public override async Task<bool> ProcessMessage(string message)
@@ -100,49 +103,58 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             foreach (var limitOrderWithTrades in tradeItem.Orders)
             {
-                var meOrder = limitOrderWithTrades.Order;
-
-                await _limitOrdersRepository.CreateOrUpdateAsync(meOrder);
-
-                var status = (OrderStatus)Enum.Parse(typeof(OrderStatus), meOrder.Status);
-
-                var aggregated = AggregateSwaps(limitOrderWithTrades.Trades);
-
-                switch (status)
+                try
                 {
-                    case OrderStatus.InOrderBook:
-                        await CreateEvent(limitOrderWithTrades, status);
-                        break;
-                    case OrderStatus.Cancelled:
-                        await CreateEvent(limitOrderWithTrades, status);
-                        await ReturnRemainingVolume(limitOrderWithTrades);
-                        break;
-                    case OrderStatus.Processing:
-                    case OrderStatus.Matched:
-                        await ProcessTrades(aggregated, limitOrderWithTrades);
-                        await SendMoney(aggregated, meOrder);
-                        break;
-                    case OrderStatus.Dust:
-                    case OrderStatus.NoLiquidity:
-                    case OrderStatus.NotEnoughFunds:
-                    case OrderStatus.ReservedVolumeGreaterThanBalance:
-                    case OrderStatus.UnknownAsset:
-                        await ReturnRemainingVolume(limitOrderWithTrades);
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(OrderStatus));
-                }
+                    var meOrder = limitOrderWithTrades.Order;
 
-                await SendPush(aggregated, meOrder, status);
+                    await _limitOrdersRepository.CreateOrUpdateAsync(meOrder);
+
+                    var status = (OrderStatus)Enum.Parse(typeof(OrderStatus), meOrder.Status);
+
+                    var aggregated = AggregateSwaps(limitOrderWithTrades.Trades);
+
+                    switch (status)
+                    {
+                        case OrderStatus.InOrderBook:
+                        case OrderStatus.Cancelled:
+                            await CreateEvent(limitOrderWithTrades, status);
+                            break;
+                        case OrderStatus.Processing:
+                        case OrderStatus.Matched:
+                            var trades = await ProcessTrades(aggregated, limitOrderWithTrades);
+                            await SendMoney(trades, aggregated, meOrder);
+                            break;
+                        case OrderStatus.Dust:
+                        case OrderStatus.NoLiquidity:
+                        case OrderStatus.NotEnoughFunds:
+                        case OrderStatus.ReservedVolumeGreaterThanBalance:
+                        case OrderStatus.UnknownAsset:
+                            await _log.WriteInfoAsync(nameof(LimitTradeQueue), nameof(ProcessMessage), limitOrderWithTrades.ToJson(), "order rejected");
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException(nameof(OrderStatus));
+                    }
+
+                    if (status == OrderStatus.Cancelled || status == OrderStatus.Matched)
+                        await ReturnRemainingVolume(limitOrderWithTrades);
+
+                    await SendPush(aggregated, meOrder, status);
+
+                    await UpdateCache(meOrder);
+                }
+                catch (Exception e)
+                {
+                    await _log.WriteErrorAsync(nameof(LimitTradeQueue), nameof(ProcessMessage), limitOrderWithTrades.ToJson(), e);
+                }
             }
 
             return true;
         }
 
-        private async Task ProcessTrades(List<AggregatedTransfer> operations, LimitQueueItem.LimitOrderWithTrades limitOrderWithTrades)
+        private async Task<IClientTrade[]> ProcessTrades(List<AggregatedTransfer> operations, LimitQueueItem.LimitOrderWithTrades limitOrderWithTrades)
         {
             if (limitOrderWithTrades.Trades.Count == 0)
-                return;
+                return new IClientTrade[0];
 
             var walletCredsClientA = await _walletCredentialsRepository.GetAsync(limitOrderWithTrades.Trades[0].ClientId);
             var walletCredsClientB = await _walletCredentialsRepository.GetAsync(limitOrderWithTrades.Trades[0].OppositeClientId);
@@ -178,9 +190,11 @@ namespace Lykke.Job.TransactionHandler.Queues
             else
                 await _bitcoinTransactionsRepository.UpdateAsync(limitOrderWithTrades.Order.Id, "",
                     contextData.ToJson(), "");
+
+            return trades;
         }
 
-        private async Task SendMoney(IEnumerable<AggregatedTransfer> aggregatedTransfers, ILimitOrder order)
+        private async Task SendMoney(IClientTrade[] clientTrades, IEnumerable<AggregatedTransfer> aggregatedTransfers, ILimitOrder order)
         {
             if (await IsClientTrusted(order.ClientId))
                 return;
@@ -188,6 +202,13 @@ namespace Lykke.Job.TransactionHandler.Queues
             var clientId = order.ClientId;
 
             var executed = aggregatedTransfers.FirstOrDefault(x => x.ClientId == clientId && x.Amount > 0);
+
+            var asset = await _assetsService.TryGetAssetAsync(executed.AssetId);
+            if (asset.Blockchain == Blockchain.Ethereum)
+            {
+                await ProcessEthBuy(executed, asset, clientTrades, order.Id);
+                return;
+            }
 
             await _offchainRequestService.CreateOffchainRequestAndNotify(executed.TransferId, clientId,
                 executed.AssetId, executed.Amount, order.Id, OffchainTransferType.FromHub);
@@ -253,16 +274,30 @@ namespace Lykke.Job.TransactionHandler.Queues
                 return;
 
             var order = limitOrderWithTrades.Order;
-            var remainigVolume = order.RemainingVolume;
+            var remainigVolume = Math.Abs(order.RemainingVolume);
             var type = order.Volume > 0 ? OrderType.Buy : OrderType.Sell;
             if (remainigVolume > 0)
             {
                 var assetPair = await _assetsService.TryGetAssetPairAsync(order.AssetPairId);
                 var neededAsset = type == OrderType.Buy ? assetPair.QuotingAssetId : assetPair.BaseAssetId;
+                var neededAmount = remainigVolume;
+
+                if (type == OrderType.Buy)
+                {
+                    var asset = await _assetsService.TryGetAssetAsync(neededAsset);
+                    var initial = (order.Volume * order.Price).TruncateDecimalPlaces(asset.Accuracy, true);
+
+                    var trades = await _clientTradesRepository.GetByOrderAsync(order.Id);
+
+                    var executed = trades.Where(x => x.AssetId == neededAsset && x.ClientId == order.ClientId)
+                        .Select(x => x.Amount).DefaultIfEmpty(0).Sum();
+
+                    neededAmount = Math.Max(0, initial - Math.Abs(executed));
+                }
 
                 //return unused volume
                 await _offchainRequestService.CreateOffchainRequestAndNotify(Guid.NewGuid().ToString(), order.ClientId,
-                    neededAsset, (decimal)remainigVolume, order.Id, OffchainTransferType.FromHub);
+                    neededAsset, (decimal)neededAmount, order.Id, OffchainTransferType.FromHub);
             }
         }
 
@@ -276,6 +311,16 @@ namespace Lykke.Job.TransactionHandler.Queues
             var assetPair = await _assetsService.TryGetAssetPairAsync(order.AssetPairId);
             await _limitTradeEventsRepository.CreateEvent(order.Id, order.ClientId, type, order.Volume,
                 assetPair?.BaseAssetId, order.AssetPairId, order.Price, status);
+        }
+
+        private async Task UpdateCache(IOrderBase meOrder)
+        {
+            if (await IsClientTrusted(meOrder.ClientId))
+                return;
+
+            var count = (await _limitOrdersRepository.GetActiveOrdersAsync(meOrder.ClientId)).Count();
+
+            await _clientCacheRepository.UpdateLimitOrdersCount(meOrder.ClientId, count);
         }
 
         private async Task<bool> IsClientTrusted(string clientId)
@@ -393,27 +438,6 @@ namespace Lykke.Job.TransactionHandler.Queues
             }
 
             return true;
-        }
-
-        private async Task CreateTransaction(string orderId, List<AggregatedTransfer> operations, IClientTrade[] trades)
-        {
-            var contextData = new SwapOffchainContextData();
-
-            foreach (var operation in operations)
-            {
-                var trade = trades.FirstOrDefault(x => x.ClientId == operation.ClientId && x.AssetId == operation.AssetId && Math.Abs(x.Amount - (double)operation.Amount) < 0.00000001);
-
-                contextData.Operations.Add(new SwapOffchainContextData.Operation()
-                {
-                    TransactionId = operation.TransferId,
-                    Amount = operation.Amount,
-                    ClientId = operation.ClientId,
-                    AssetId = operation.AssetId,
-                    ClientTradeId = trade?.Id
-                });
-            }
-
-            await _bitcoinTransactionsRepository.CreateAsync(orderId, BitCoinCommands.SwapOffchain, "", contextData.ToJson(), "");
         }
 
         private List<AggregatedTransfer> AggregateSwaps(IEnumerable<LimitQueueItem.LimitTradeInfo> trades)

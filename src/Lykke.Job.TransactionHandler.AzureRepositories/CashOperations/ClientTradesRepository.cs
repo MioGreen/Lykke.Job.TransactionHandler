@@ -389,6 +389,11 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
             return result;
         }
 
+        public async Task<IEnumerable<IClientTrade>> GetByOrderAsync(string orderId)
+        {
+            return await _tableStorage.GetDataAsync(ClientTradeEntity.ByOrder.GeneratePartitionKey(orderId));
+        }
+
         public Task ScanByDtAsync(Func<IEnumerable<IClientTrade>, Task> chunk, DateTime @from, DateTime to)
         {
             var rangeQuery = AzureStorageUtils.QueryGenerator<ClientTradeEntity>

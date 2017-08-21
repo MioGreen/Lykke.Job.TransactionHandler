@@ -31,5 +31,8 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Exchange
     public interface ILimitOrdersRepository
     {
         Task CreateOrUpdateAsync(ILimitOrder marketOrder);
+        Task<ILimitOrder> GetOrderAsync(string orderId);
+        Task<IEnumerable<ILimitOrder>> GetOrdersAsync(IEnumerable<string> orderIds);
+        Task<IEnumerable<ILimitOrder>> GetActiveOrdersAsync(string clientId);
     }
 }
