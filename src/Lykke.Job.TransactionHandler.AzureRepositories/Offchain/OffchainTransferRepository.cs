@@ -47,26 +47,6 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
                 };
             }
         }
-
-        public class ByClient
-        {
-            public static OffchainTransferEntity Create(IOffchainTransfer commonTransfer)
-            {
-                return new OffchainTransferEntity
-                {
-                    PartitionKey = commonTransfer.ClientId,
-                    RowKey = commonTransfer.Id,
-                    AssetId = commonTransfer.AssetId,
-                    Amount = commonTransfer.Amount,
-                    ClientId = commonTransfer.ClientId,
-                    Type = commonTransfer.Type,
-                    OrderId = commonTransfer.OrderId,
-                    CreatedDt = commonTransfer.CreatedDt,
-                    ChannelClosing = commonTransfer.ChannelClosing,
-                    Onchain = commonTransfer.Onchain
-                };
-            }
-        }
     }
 
     public class OffchainTransferRepository : IOffchainTransferRepository
@@ -81,9 +61,8 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
         public async Task<IOffchainTransfer> CreateTransfer(string transactionId, string clientId, string assetId, decimal amount, OffchainTransferType type, string externalTransferId, string orderId, bool channelClosing = false)
         {
             var entity = OffchainTransferEntity.ByCommon.Create(transactionId, clientId, assetId, amount, type, externalTransferId, orderId, channelClosing);
-            var byClient = OffchainTransferEntity.ByClient.Create(entity);
 
-            await Task.WhenAll(_storage.InsertAsync(entity), _storage.InsertAsync(byClient));
+            await _storage.InsertAsync(entity);
 
             return entity;
         }
@@ -93,21 +72,9 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
             return await _storage.GetDataAsync(OffchainTransferEntity.ByCommon.GeneratePartitionKey(), id);
         }
 
-        public async Task<IEnumerable<IOffchainTransfer>> GetTransfersByOrder(string clientId, string orderId)
-        {
-            var query = new TableQuery<OffchainTransferEntity>()
-                .Where(TableQuery.CombineFilters(
-                    TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, clientId),
-                    TableOperators.And,
-                    TableQuery.GenerateFilterCondition("OrderId", QueryComparisons.Equal, orderId)
-                ));
-
-            return await _storage.WhereAsync(query);
-        }
-
         public async Task CompleteTransfer(string transferId, bool? onchain = null)
         {
-            var item = await _storage.ReplaceAsync(OffchainTransferEntity.ByCommon.GeneratePartitionKey(), transferId,
+            await _storage.ReplaceAsync(OffchainTransferEntity.ByCommon.GeneratePartitionKey(), transferId,
                 entity =>
                 {
                     entity.Completed = true;
@@ -115,23 +82,11 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
                         entity.Onchain = onchain.Value;
                     return entity;
                 });
-
-            await _storage.DeleteAsync(item.ClientId, transferId);
         }
 
         public async Task UpdateTransfer(string transferId, string externalTransferId, bool closing = false, bool? onchain = null)
         {
-            var item = await _storage.ReplaceAsync(OffchainTransferEntity.ByCommon.GeneratePartitionKey(), transferId,
-                entity =>
-                {
-                    entity.ExternalTransferId = externalTransferId;
-                    entity.ChannelClosing = closing;
-                    if (onchain != null)
-                        entity.Onchain = onchain.Value;
-                    return entity;
-                });
-
-            await _storage.ReplaceAsync(item.ClientId, transferId,
+            await _storage.ReplaceAsync(OffchainTransferEntity.ByCommon.GeneratePartitionKey(), transferId,
                 entity =>
                 {
                     entity.ExternalTransferId = externalTransferId;

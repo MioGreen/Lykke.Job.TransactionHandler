@@ -27,6 +27,8 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Exchange
         , Dust
         //Cancelled
         , Cancelled
+        // negative spread 
+        , LeadToNegativeSpread
     }
 
     public interface IOrderBase
