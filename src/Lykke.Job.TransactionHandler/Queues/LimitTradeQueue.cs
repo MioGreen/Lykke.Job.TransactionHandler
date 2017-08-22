@@ -273,30 +273,37 @@ namespace Lykke.Job.TransactionHandler.Queues
                 return;
 
             var order = limitOrderWithTrades.Order;
-            var remainigVolume = Math.Abs(order.RemainingVolume);
+            
             var type = order.Volume > 0 ? OrderType.Buy : OrderType.Sell;
-            if (remainigVolume > 0)
+            var assetPair = await _assetsService.TryGetAssetPairAsync(order.AssetPairId);
+
+            if (type == OrderType.Buy)
             {
-                var assetPair = await _assetsService.TryGetAssetPairAsync(order.AssetPairId);
-                var neededAsset = type == OrderType.Buy ? assetPair.QuotingAssetId : assetPair.BaseAssetId;
-                var neededAmount = remainigVolume;
+                var neededAsset = assetPair.QuotingAssetId;
+                var asset = await _assetsService.TryGetAssetAsync(neededAsset);
+                var initial = (order.Volume * order.Price).TruncateDecimalPlaces(asset.Accuracy, true);
 
-                if (type == OrderType.Buy)
+                var trades = await _clientTradesRepository.GetByOrderAsync(order.Id);
+
+                var executed = trades.Where(x => x.AssetId == neededAsset && x.ClientId == order.ClientId)
+                    .Select(x => x.Amount).DefaultIfEmpty(0).Sum();
+
+                var returnAmount = Math.Max(0, initial - Math.Abs(executed));
+
+                if (returnAmount > 0)
+                    await _offchainRequestService.CreateOffchainRequestAndNotify(Guid.NewGuid().ToString(), order.ClientId,
+                        neededAsset, (decimal)returnAmount, order.Id, OffchainTransferType.FromHub);
+            }
+            else
+            {
+                var neededAsset = assetPair.BaseAssetId;
+                var remainigVolume = Math.Abs(order.RemainingVolume);
+
+                if (remainigVolume > 0)
                 {
-                    var asset = await _assetsService.TryGetAssetAsync(neededAsset);
-                    var initial = (order.Volume * order.Price).TruncateDecimalPlaces(asset.Accuracy, true);
-
-                    var trades = await _clientTradesRepository.GetByOrderAsync(order.Id);
-
-                    var executed = trades.Where(x => x.AssetId == neededAsset && x.ClientId == order.ClientId)
-                        .Select(x => x.Amount).DefaultIfEmpty(0).Sum();
-
-                    neededAmount = Math.Max(0, initial - Math.Abs(executed));
+                    await _offchainRequestService.CreateOffchainRequestAndNotify(Guid.NewGuid().ToString(), order.ClientId,
+                        neededAsset, (decimal)remainigVolume, order.Id, OffchainTransferType.FromHub);
                 }
-
-                //return unused volume
-                await _offchainRequestService.CreateOffchainRequestAndNotify(Guid.NewGuid().ToString(), order.ClientId,
-                    neededAsset, (decimal)neededAmount, order.Id, OffchainTransferType.FromHub);
             }
         }
 
