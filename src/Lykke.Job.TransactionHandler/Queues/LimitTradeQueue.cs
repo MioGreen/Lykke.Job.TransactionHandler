@@ -233,7 +233,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                                 .Sum());
 
             string msg;
-
+            
             switch (status)
             {
                 case OrderStatus.InOrderBook:
@@ -265,7 +265,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             {
                 var clientAcc = await _clientAccountsRepository.GetByIdAsync(clientId);
 
-                await _appNotifications.SendTextNotificationAsync(new[] { clientAcc.NotificationsId }, NotificationType.LimitOrderEvent, msg);
+                await _appNotifications.SendLimitOrderNotification(new[] { clientAcc.NotificationsId }, msg, type, status);
             }
         }
 
