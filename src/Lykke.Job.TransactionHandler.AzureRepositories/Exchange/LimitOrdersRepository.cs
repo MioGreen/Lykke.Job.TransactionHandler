@@ -54,6 +54,27 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Exchange
             }
         }
 
+        public static class ByClientIdActive
+        {
+            public static string GeneratePartitionKey(string clientId)
+            {
+                return "Active_" + clientId;
+            }
+
+            public static string GenerateRowKey(string orderId)
+            {
+                return orderId;
+            }
+
+            public static LimitOrderEntity Create(ILimitOrder limitOrder)
+            {
+                var entity = CreateNew(limitOrder);
+                entity.RowKey = GenerateRowKey(limitOrder.Id);
+                entity.PartitionKey = GeneratePartitionKey(limitOrder.ClientId);
+                return entity;
+            }
+        }
+
         public static LimitOrderEntity CreateNew(ILimitOrder limitOrder)
         {
             return new LimitOrderEntity
@@ -102,13 +123,15 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Exchange
 
             var byOrderEntity = LimitOrderEntity.ByOrderId.Create(limitOrder);
             var byClientEntity = LimitOrderEntity.ByClientId.Create(limitOrder);
+            var byClientEntityActive = LimitOrderEntity.ByClientIdActive.Create(limitOrder);
 
             await _tableStorage.InsertOrMergeAsync(byOrderEntity);
+            await _tableStorage.InsertOrMergeAsync(byClientEntity);
 
             if (status == OrderStatus.InOrderBook || status == OrderStatus.Processing)
-                await _tableStorage.InsertOrMergeAsync(byClientEntity);
+                await _tableStorage.InsertOrMergeAsync(byClientEntityActive);
             else
-                await _tableStorage.DeleteAsync(LimitOrderEntity.ByClientId.GeneratePartitionKey(limitOrder.ClientId), limitOrder.Id);
+                await _tableStorage.DeleteAsync(LimitOrderEntity.ByClientIdActive.GeneratePartitionKey(limitOrder.ClientId), limitOrder.Id);
         }
 
         public async Task<ILimitOrder> GetOrderAsync(string orderId)
@@ -124,9 +147,16 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Exchange
             return await _tableStorage.GetDataAsync(partitionKey, orderIds);
         }
 
-        public async Task<IEnumerable<ILimitOrder>> GetActiveOrdersAsync(string clientId)
+        public async Task<IEnumerable<ILimitOrder>> GetOrdersAsync(string clientId)
         {
             var partitionKey = LimitOrderEntity.ByClientId.GeneratePartitionKey(clientId);
+
+            return await _tableStorage.GetDataAsync(partitionKey);
+        }
+
+        public async Task<IEnumerable<ILimitOrder>> GetActiveOrdersAsync(string clientId)
+        {
+            var partitionKey = LimitOrderEntity.ByClientIdActive.GeneratePartitionKey(clientId);
 
             return await _tableStorage.GetDataAsync(partitionKey);
         }

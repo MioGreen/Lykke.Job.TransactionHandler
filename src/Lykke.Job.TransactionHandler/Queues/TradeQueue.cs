@@ -169,7 +169,8 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             var clientTrades = queueMessage.ToDomainOffchain(walletCredsMarket, walletCredsLimit, await _assetsService.GetAllAssetsAsync());
 
-            var operations = AggregateSwaps(queueMessage.Trades);
+            // get operations only by market order user (limit user will be processed in limit trade queue)
+            var operations = AggregateSwaps(queueMessage.Trades).Where(x=>x.ClientId == queueMessage.Order.ClientId).ToList();
 
             await CreateTransaction(offchainOrder.Id, operations, clientTrades);
 
