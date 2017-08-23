@@ -39,8 +39,6 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Offchain
 
         Task<IOffchainTransfer> GetTransfer(string id);
 
-        Task<IEnumerable<IOffchainTransfer>> GetTransfersByOrder(string clientId, string orderId);
-
         Task CompleteTransfer(string transferId, bool? onchain = null);
 
         Task UpdateTransfer(string transferId, string toString, bool closing = false, bool? onchain = null);

@@ -72,7 +72,7 @@ namespace Lykke.Job.TransactionHandler.Resources {
         
         /// <summary>
         ///   Looks up a localized string similar to Limit Order for {0} {1} {2} cancelled
-        ///Price {3}{4}.
+        ///Price {3} {4}.
         /// </summary>
         internal static string LimitOrderCancelled {
             get {
@@ -82,7 +82,7 @@ namespace Lykke.Job.TransactionHandler.Resources {
         
         /// <summary>
         ///   Looks up a localized string similar to Limit Order for {0} {1} {2} executed
-        ///Price {3}{4} volume {5} {6}.
+        ///Price {3} {4} volume {5} {6}.
         /// </summary>
         internal static string LimitOrderExecuted {
             get {
@@ -92,7 +92,7 @@ namespace Lykke.Job.TransactionHandler.Resources {
         
         /// <summary>
         ///   Looks up a localized string similar to Limit Order for {0} {1} {2} expired
-        ///Price {3}{4}.
+        ///Price {3} {4}.
         /// </summary>
         internal static string LimitOrderExpired {
             get {
@@ -102,7 +102,7 @@ namespace Lykke.Job.TransactionHandler.Resources {
         
         /// <summary>
         ///   Looks up a localized string similar to Limit Order for {0} {1} {2} partially executed
-        ///Price {3}{4} volume {5} {6}.
+        ///Price {3} {4} volume {5} {6}.
         /// </summary>
         internal static string LimitOrderPartiallyExecuted {
             get {
@@ -112,7 +112,7 @@ namespace Lykke.Job.TransactionHandler.Resources {
         
         /// <summary>
         ///   Looks up a localized string similar to Limit Order for {0} {1} {2} rejected
-        ///Price {3}{4}.
+        ///Price {3} {4}.
         /// </summary>
         internal static string LimitOrderRejected {
             get {
@@ -122,7 +122,7 @@ namespace Lykke.Job.TransactionHandler.Resources {
         
         /// <summary>
         ///   Looks up a localized string similar to Limit Order for {0} {1} {2} placed
-        ///Price {3}{4}.
+        ///Price {3} {4}.
         /// </summary>
         internal static string LimitOrderStarted {
             get {

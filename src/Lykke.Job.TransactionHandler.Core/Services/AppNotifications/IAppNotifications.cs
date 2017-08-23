@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using Lykke.Job.TransactionHandler.Core.Domain.Exchange;
 
 namespace Lykke.Job.TransactionHandler.Core.Services.AppNotifications
 {
@@ -22,7 +23,7 @@ namespace Lykke.Job.TransactionHandler.Core.Services.AppNotifications
         PushTxDialog = 14,
         LimitOrderEvent = 15
     }
-
+    
     public static class EventsAndEntities
     {
         // ReSharper disable once InconsistentNaming
@@ -115,6 +116,8 @@ namespace Lykke.Job.TransactionHandler.Core.Services.AppNotifications
     public interface IAppNotifications
     {
         Task SendDataNotificationToAllDevicesAsync(string[] notificationIds, NotificationType type, string entity, string id = "");
+
+        Task SendLimitOrderNotification(string[] notificationsIds, string message, OrderType orderType, OrderStatus status);
 
         Task SendTextNotificationAsync(string[] notificationsIds, NotificationType type, string message);
 

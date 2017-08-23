@@ -10,6 +10,7 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Offchain
         string ClientId { get; set; }
         DateTime CreatedAt { get; set; }
         decimal Volume { get; set; }
+        decimal ReservedVolume { get; set; }
         string AssetPair { get; set; }
         string Asset { get; set; }
         bool Straight { get; set; }
@@ -20,7 +21,5 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Offchain
     public interface IOffchainOrdersRepository
     {
         Task<IOffchainOrder> GetOrder(string id);
-        Task<IOffchainOrder> CreateOrder(string clientId, string asset, string assetPair, decimal volume, bool straight);
-        Task UpdatePrice(string orderId, decimal price);
     }
 }
