@@ -122,6 +122,8 @@ namespace Lykke.Job.TransactionHandler.Queues
                             break;
                         case OrderStatus.Processing:
                         case OrderStatus.Matched:
+                            if (prevOrderState == null)
+                                await CreateEvent(limitOrderWithTrades, OrderStatus.InOrderBook);
                             var trades = await ProcessTrades(aggregated, limitOrderWithTrades);
                             await SendMoney(trades, aggregated, meOrder);
                             break;
