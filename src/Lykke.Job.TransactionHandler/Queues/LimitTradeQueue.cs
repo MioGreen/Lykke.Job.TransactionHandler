@@ -367,7 +367,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                     OperationType = OperationType.Trade,
                     OrderId = orderId,
                     Volume = operation.Amount
-                });
+                }, false);
 
                 var res = await _srvEthereumHelper.SendTransferAsync(transferId, string.Empty, asset,
                     _settings.HotwalletAddress, toAddress, operation.Amount);
