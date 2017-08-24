@@ -29,7 +29,7 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
 
         public static LimitTradeEventEntity Create(string orderId, string clientId, OrderType type, double volume,
             string assetId,
-            string assetPair, double price, OrderStatus status)
+            string assetPair, double price, OrderStatus status, DateTime dateTime)
         {
             return new LimitTradeEventEntity
             {
@@ -41,7 +41,7 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
                 Volume = volume,
                 AssetId = assetId,
                 AssetPair = assetPair,
-                CreatedDt = DateTime.UtcNow,
+                CreatedDt = dateTime,
                 OrderId = orderId,
                 Price = price
             };
@@ -58,10 +58,10 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
         }
 
         public Task CreateEvent(string orderId, string clientId, OrderType type, double volume, string assetId,
-            string assetPair, double price, OrderStatus status)
+            string assetPair, double price, OrderStatus status, DateTime dateTime)
         {
             return _storage.InsertAsync(LimitTradeEventEntity.Create(orderId, clientId, type, volume, assetId,
-                assetPair, price, status));
+                assetPair, price, status, dateTime));
         }
 
         public async Task<IEnumerable<ILimitTradeEvent>> GetEventsAsync(string clientId)

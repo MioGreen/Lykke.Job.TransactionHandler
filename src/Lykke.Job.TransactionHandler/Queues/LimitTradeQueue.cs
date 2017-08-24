@@ -325,8 +325,9 @@ namespace Lykke.Job.TransactionHandler.Queues
             var order = limitOrderWithTrades.Order;
             var type = order.Volume > 0 ? OrderType.Buy : OrderType.Sell;
             var assetPair = await _assetsService.TryGetAssetPairAsync(order.AssetPairId);
+            var date = status == OrderStatus.InOrderBook ? limitOrderWithTrades.Order.CreatedAt : DateTime.UtcNow;
             await _limitTradeEventsRepository.CreateEvent(order.Id, order.ClientId, type, order.Volume,
-                assetPair?.BaseAssetId, order.AssetPairId, order.Price, status);
+                assetPair?.BaseAssetId, order.AssetPairId, order.Price, status, date);
         }
 
         private async Task UpdateCache(IOrderBase meOrder)

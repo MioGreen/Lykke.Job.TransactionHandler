@@ -24,7 +24,7 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.CashOperations
     public interface ILimitTradeEventsRepository
     {
         Task CreateEvent(string orderId, string clientId, OrderType type, double volume, string assetId,
-            string assetPair, double price, OrderStatus status);
+            string assetPair, double price, OrderStatus status, DateTime dateTime);
         Task<IEnumerable<ILimitTradeEvent>> GetEventsAsync(string clientId);
     }
 }
