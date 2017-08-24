@@ -233,8 +233,8 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             var priceAsset = await _assetsService.TryGetAssetAsync(assetPair.QuotingAssetId);
 
-            var volume = Math.Abs(order.Volume);
-            var remainingVolume = Math.Abs(prevOrderState?.RemainingVolume ?? order.Volume);
+            var volume = (decimal)Math.Abs(order.Volume);
+            var remainingVolume = (decimal)Math.Abs(prevOrderState?.RemainingVolume ?? order.Volume);
             var executedSum = Math.Abs(aggregatedTransfers.Where(x => x.ClientId == clientId && x.AssetId == receivedAsset)
                                 .Select(x => x.Amount)
                                 .DefaultIfEmpty(0)
