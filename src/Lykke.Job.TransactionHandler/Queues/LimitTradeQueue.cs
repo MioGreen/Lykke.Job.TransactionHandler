@@ -149,7 +149,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 }
                 catch (Exception e)
                 {
-                    await _log.WriteErrorAsync(nameof(LimitTradeQueue), nameof(ProcessMessage), limitOrderWithTrades.ToJson(), e);
+                    await _log.WriteErrorAsync(nameof(LimitTradeQueue), nameof(ProcessMessage), limitOrderWithTrades.Order.ToJson(), e);
                 }
             }
 
