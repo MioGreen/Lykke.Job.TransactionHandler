@@ -268,10 +268,6 @@ namespace Lykke.Job.TransactionHandler.Modules
                 new ClientCacheRepository(
                     new AzureTableStorage<ClientCacheEntity>(_dbSettings.ClientPersonalInfoConnString, "ClientCache", _log)));
 
-            builder.RegisterInstance<IPersonalDataRepository>(
-                new PersonalDataRepository(
-                    new AzureTableStorage<PersonalDataEntity>(_dbSettings.ClientPersonalInfoConnString, "PersonalData", _log)));
-
             builder.RegisterInstance<IEthClientEventLogs>(
                 new EthClientEventLogs(
                     new AzureTableStorage<EthClientEventRecord>(_dbSettings.LwEthLogsConnString, "EthClientEventLogs", _log)));
