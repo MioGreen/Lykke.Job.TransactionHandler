@@ -14,6 +14,7 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.BitCoin
         public const string TransferAll = "TransferAll";
         public const string Issue = "Issue";
         public const string Refund = "Refund";
+        public const string ManualUpdate = "ManualUpdate";
     }
 
     public interface IBitcoinTransaction
