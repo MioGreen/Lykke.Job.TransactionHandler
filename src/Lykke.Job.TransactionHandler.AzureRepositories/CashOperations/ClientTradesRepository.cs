@@ -248,6 +248,19 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
                 entity.State = TransactionStates.SettledOnchain;
                 return entity;
             });
+
+            if (clientIdRecord.IsLimitOrderResult)
+            {
+                var orderPartition = ClientTradeEntity.ByOrder.GeneratePartitionKey(clientIdRecord.LimitOrderId);
+                var orderRowKey = ClientTradeEntity.ByOrder.GenerateRowKey(recordId);
+
+                await _tableStorage.MergeAsync(orderPartition, orderRowKey, entity =>
+                {
+                    entity.BlockChainHash = hash;
+                    entity.State = TransactionStates.SettledOnchain;
+                    return entity;
+                });
+            }
         }
 
         public async Task SetDetectionTimeAndConfirmations(string clientId, string recordId, DateTime detectTime,
@@ -337,6 +350,21 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
             var dtPartitionKey = ClientTradeEntity.ByDt.GeneratePartitionKey();
             var dtRowKey = ClientTradeEntity.ByDt.GenerateRowKey(id);
 
+            var byOrderTask = Task.CompletedTask;
+            if (clientIdRecord.IsLimitOrderResult)
+            {
+                var orderPartition = ClientTradeEntity.ByOrder.GeneratePartitionKey(clientIdRecord.LimitOrderId);
+                var orderRowKey = ClientTradeEntity.ByOrder.GenerateRowKey(id);
+                byOrderTask = _tableStorage.MergeAsync(orderPartition, orderRowKey, entity =>
+                {
+                    if (offchain)
+                        entity.State = TransactionStates.SettledOffchain;
+                    else
+                        entity.IsSettled = true;
+                    return entity;
+                });
+            }
+
 
             await Task.WhenAll(
                 _tableStorage.MergeAsync(partitionKey, rowKey, entity =>
@@ -362,7 +390,8 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
                     else
                         entity.IsSettled = true;
                     return entity;
-                })
+                }),
+                byOrderTask
             );
         }
 

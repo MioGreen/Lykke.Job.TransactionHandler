@@ -107,6 +107,8 @@ namespace Lykke.Job.TransactionHandler.Queues
                 {
                     var meOrder = limitOrderWithTrades.Order;
 
+                    var prevOrderState = await _limitOrdersRepository.GetOrderAsync(meOrder.Id);
+
                     await _limitOrdersRepository.CreateOrUpdateAsync(meOrder);
 
                     var status = (OrderStatus)Enum.Parse(typeof(OrderStatus), meOrder.Status);
@@ -121,6 +123,8 @@ namespace Lykke.Job.TransactionHandler.Queues
                             break;
                         case OrderStatus.Processing:
                         case OrderStatus.Matched:
+                            if (prevOrderState == null)
+                                await CreateEvent(limitOrderWithTrades, OrderStatus.InOrderBook);
                             var trades = await ProcessTrades(aggregated, limitOrderWithTrades);
                             await SendMoney(trades, aggregated, meOrder);
                             break;
@@ -141,7 +145,7 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                     await UpdateCache(meOrder);
 
-                    await SendPush(aggregated, meOrder, status);
+                    await SendPush(aggregated, meOrder, prevOrderState, status);
                 }
                 catch (Exception e)
                 {
@@ -215,7 +219,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 executed.AssetId, executed.Amount, order.Id, OffchainTransferType.FromHub);
         }
 
-        private async Task SendPush(IEnumerable<AggregatedTransfer> aggregatedTransfers, ILimitOrder order, OrderStatus status)
+        private async Task SendPush(IEnumerable<AggregatedTransfer> aggregatedTransfers, ILimitOrder order, ILimitOrder prevOrderState, OrderStatus status)
         {
             if (await IsClientTrusted(order.ClientId))
                 return;
@@ -224,30 +228,34 @@ namespace Lykke.Job.TransactionHandler.Queues
             var type = order.Volume > 0 ? OrderType.Buy : OrderType.Sell;
             var typeString = type.ToString().ToLower();
             var assetPair = await _assetsService.TryGetAssetPairAsync(order.AssetPairId);
-            var neededAsset = type == OrderType.Buy ? assetPair.QuotingAssetId : assetPair.BaseAssetId;
+            
             var receivedAsset = type == OrderType.Buy ? assetPair.BaseAssetId : assetPair.QuotingAssetId;
-            var volume = Math.Abs(order.Volume);
-            var remainingVolume = Math.Abs(order.RemainingVolume);
+            var receivedAssetEntity = await _assetsService.TryGetAssetAsync(receivedAsset);
+
+            var priceAsset = await _assetsService.TryGetAssetAsync(assetPair.QuotingAssetId);
+
+            var volume = (decimal)Math.Abs(order.Volume);
+            var remainingVolume = (decimal)Math.Abs(prevOrderState?.RemainingVolume ?? order.Volume);
             var executedSum = Math.Abs(aggregatedTransfers.Where(x => x.ClientId == clientId && x.AssetId == receivedAsset)
                                 .Select(x => x.Amount)
                                 .DefaultIfEmpty(0)
-                                .Sum());
+                                .Sum()).TruncateDecimalPlaces(receivedAssetEntity.Accuracy);
 
             string msg;
-            
+
             switch (status)
             {
                 case OrderStatus.InOrderBook:
-                    msg = string.Format(TextResources.LimitOrderStarted, typeString, order.AssetPairId, volume, order.Price, neededAsset);
+                    msg = string.Format(TextResources.LimitOrderStarted, typeString, order.AssetPairId, volume, order.Price, priceAsset.DisplayId);
                     break;
                 case OrderStatus.Cancelled:
-                    msg = string.Format(TextResources.LimitOrderCancelled, typeString, order.AssetPairId, volume, order.Price, neededAsset);
+                    msg = string.Format(TextResources.LimitOrderCancelled, typeString, order.AssetPairId, volume, order.Price, priceAsset.DisplayId);
                     break;
                 case OrderStatus.Processing:
-                    msg = string.Format(TextResources.LimitOrderPartiallyExecuted, typeString, order.AssetPairId, remainingVolume, order.Price, neededAsset, executedSum, receivedAsset);
+                    msg = string.Format(TextResources.LimitOrderPartiallyExecuted, typeString, order.AssetPairId, remainingVolume, order.Price, priceAsset.DisplayId, executedSum, receivedAssetEntity.DisplayId);
                     break;
                 case OrderStatus.Matched:
-                    msg = string.Format(TextResources.LimitOrderExecuted, typeString, order.AssetPairId, remainingVolume, order.Price, neededAsset, executedSum, receivedAsset);
+                    msg = string.Format(TextResources.LimitOrderExecuted, typeString, order.AssetPairId, remainingVolume, order.Price, priceAsset.DisplayId, executedSum, receivedAssetEntity.DisplayId);
                     break;
                 case OrderStatus.Dust:
                 case OrderStatus.NoLiquidity:
@@ -255,7 +263,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 case OrderStatus.ReservedVolumeGreaterThanBalance:
                 case OrderStatus.UnknownAsset:
                 case OrderStatus.LeadToNegativeSpread:
-                    msg = string.Format(TextResources.LimitOrderRejected, typeString, order.AssetPairId, volume, order.Price, neededAsset);
+                    msg = string.Format(TextResources.LimitOrderRejected, typeString, order.AssetPairId, volume, order.Price, priceAsset.DisplayId);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(OrderStatus));
@@ -318,8 +326,9 @@ namespace Lykke.Job.TransactionHandler.Queues
             var order = limitOrderWithTrades.Order;
             var type = order.Volume > 0 ? OrderType.Buy : OrderType.Sell;
             var assetPair = await _assetsService.TryGetAssetPairAsync(order.AssetPairId);
+            var date = status == OrderStatus.InOrderBook ? limitOrderWithTrades.Order.CreatedAt : DateTime.UtcNow;
             await _limitTradeEventsRepository.CreateEvent(order.Id, order.ClientId, type, order.Volume,
-                assetPair?.BaseAssetId, order.AssetPairId, order.Price, status);
+                assetPair?.BaseAssetId, order.AssetPairId, order.Price, status, date);
         }
 
         private async Task UpdateCache(IOrderBase meOrder)
@@ -359,7 +368,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                     OperationType = OperationType.Trade,
                     OrderId = orderId,
                     Volume = operation.Amount
-                });
+                }, false);
 
                 var res = await _srvEthereumHelper.SendTransferAsync(transferId, string.Empty, asset,
                     _settings.HotwalletAddress, toAddress, operation.Amount);

@@ -51,7 +51,7 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Ethereum
     {
         Task<IEthereumTransactionRequest> GetAsync(Guid id);
         Task<IEthereumTransactionRequest> GetByOrderAsync(string orderId);
-        Task InsertAsync(IEthereumTransactionRequest request);
+        Task InsertAsync(IEthereumTransactionRequest request, bool insertOrder = true);
         Task UpdateAsync(IEthereumTransactionRequest request);
     }
 }
