@@ -38,6 +38,7 @@ namespace Lykke.Job.TransactionHandler.Core
             public string OffchainConnString { get; set; }
             public string QuantaSrvConnString { get; set; }
             public string SolarCoinConnString { get; set; }
+            public string HistoryLogsConnString { get; set; }
         }
 
         public class AssetsCacheSettings
