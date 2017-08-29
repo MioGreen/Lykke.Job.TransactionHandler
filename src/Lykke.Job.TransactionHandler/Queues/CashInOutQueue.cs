@@ -18,7 +18,6 @@ using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.Assets.Client.Models;
 using Lykke.Service.OperationsHistory.HistoryWriter.Abstractions;
 using Lykke.Service.OperationsHistory.HistoryWriter.Model;
-using Microsoft.AspNetCore.Builder;
 using Newtonsoft.Json;
 
 namespace Lykke.Job.TransactionHandler.Queues
@@ -163,7 +162,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 Currency = msg.AssetId,
                 DateTime = msg.Date,
                 OpType = "CashInOut",
-                CustomData = string.Empty
+                CustomData = new { Id = transaction.TransactionId }.ToJson()
             };
 
             try
