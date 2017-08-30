@@ -66,6 +66,8 @@ using Lykke.MatchingEngine.Connector.Services;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.ExchangeOperations.Client;
 using Lykke.Service.ExchangeOperations.Contracts;
+using Lykke.Service.OperationsHistory.HistoryWriter.Abstractions;
+using Lykke.Service.OperationsHistory.HistoryWriter.Implementation;
 using Lykke.Service.PersonalData.Client;
 using Lykke.Service.PersonalData.Contract;
 using Microsoft.Extensions.DependencyInjection;
@@ -200,6 +202,9 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.RegisterType<EmailSender>().As<IEmailSender>().SingleInstance();
             builder.RegisterType<SrvEmailsFacade>().As<ISrvEmailsFacade>().SingleInstance();
 
+            var historyWriter = new HistoryWriter(_dbSettings.HistoryLogsConnString, _log);
+            builder.RegisterInstance(historyWriter).As<IHistoryWriter>();
+
             builder.RegisterType<PersonalDataService>()
                 .As<IPersonalDataService>()
                 .WithParameter(TypedParameter.From(_settings.TransactionHandlerJob.PersonalDataServiceSettings));
@@ -309,6 +314,10 @@ namespace Lykke.Job.TransactionHandler.Modules
                 new PaymentTransactionsRepository(
                     new AzureTableStorage<PaymentTransactionEntity>(_dbSettings.ClientPersonalInfoConnString, "PaymentTransactions", _log),
                     new AzureTableStorage<AzureMultiIndex>(_dbSettings.ClientPersonalInfoConnString, "PaymentTransactions", _log)));
+
+            builder.RegisterInstance<IAssetsRepository>(
+                new AssetsRepository(
+                    new AzureTableStorage<AssetEntity>(_dbSettings.DictsConnString, "Dictionaries", _log)));
 
             builder.RegisterInstance<IQuantaCommandProducer>(
                 new SrvQuantaCommandProducer(new AzureQueueExt(_dbSettings.QuantaSrvConnString, "quanta-out")));

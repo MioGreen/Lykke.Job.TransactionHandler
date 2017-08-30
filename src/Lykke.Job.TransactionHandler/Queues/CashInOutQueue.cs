@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Common;
 using Common.Log;
 using Lykke.Job.TransactionHandler.Core;
+using Lykke.Job.TransactionHandler.Core.Domain.Assets;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.Blockchain;
 using Lykke.Job.TransactionHandler.Core.Domain.CashOperations;
@@ -16,6 +17,8 @@ using Lykke.Job.TransactionHandler.Queues.Models;
 using Lykke.Job.TransactionHandler.Services;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.Assets.Client.Models;
+using Lykke.Service.OperationsHistory.HistoryWriter.Abstractions;
+using Lykke.Service.OperationsHistory.HistoryWriter.Model;
 using Newtonsoft.Json;
 
 namespace Lykke.Job.TransactionHandler.Queues
@@ -35,6 +38,8 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly ISrvEthereumHelper _srvEthereumHelper;
         private readonly IBcnClientCredentialsRepository _bcnClientCredentialsRepository;
         private readonly IEthClientEventLogs _ethClientEventLogs;
+        private readonly IHistoryWriter _historyWriter;
+        private readonly IAssetsRepository _assetsRepository;
 
         public CashInOutQueue(AppSettings.RabbitMqSettings config, ILog log,
             IBitcoinCommandSender bitcoinCommandSender,
@@ -47,7 +52,8 @@ namespace Lykke.Job.TransactionHandler.Queues
             IClientSettingsRepository clientSettingsRepository,
             IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
             ISrvEthereumHelper srvEthereumHelper, IBcnClientCredentialsRepository bcnClientCredentialsRepository,
-            IEthClientEventLogs ethClientEventLogs)
+            IEthClientEventLogs ethClientEventLogs, 
+            IHistoryWriter historyWriter, IAssetsRepository assetsRepository)
             : base(config.ExternalHost, config.Port,
                   config.ExchangeCashOperation, "transactions.cashinout",
                   config.Username, config.Password, log)
@@ -65,6 +71,8 @@ namespace Lykke.Job.TransactionHandler.Queues
             _srvEthereumHelper = srvEthereumHelper;
             _bcnClientCredentialsRepository = bcnClientCredentialsRepository;
             _ethClientEventLogs = ethClientEventLogs;
+            _historyWriter = historyWriter;
+            _assetsRepository = assetsRepository;
         }
 
         public override async Task<bool> ProcessMessage(string message)
@@ -93,6 +101,8 @@ namespace Lykke.Job.TransactionHandler.Queues
                         return await ProcessCashOut(transaction, queueMessage);
                     case BitCoinCommands.Destroy:
                         return await ProcessDestroy(transaction, queueMessage);
+                    case BitCoinCommands.ManualUpdate:
+                        return await ProcessManualOperation(transaction, queueMessage);
                     default:
                         await _log.WriteWarningAsync(nameof(CashInOutQueue), nameof(ProcessMessage), message, "unkown command type");
                         return false;
@@ -142,6 +152,33 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             //Send to bitcoin
             await _bitcoinCommandSender.SendCommand(cmd);
+
+            return true;
+        }
+
+        private async Task<bool> ProcessManualOperation(IBitcoinTransaction transaction, CashInOutQueueMessage msg)
+        {
+            var asset = await _assetsRepository.GetAssetAsync(msg.AssetId);
+
+            var newHistoryEntry = new HistoryEntry
+            {
+                ClientId = msg.ClientId,
+                Amount = msg.Amount.ParseAnyDouble(),
+                Currency = asset.Name,
+                DateTime = msg.Date,
+                OpType = "CashInOut",
+                CustomData = new { Id = transaction.TransactionId }.ToJson()
+            };
+
+            try
+            {
+                await _historyWriter.Push(newHistoryEntry);
+            }
+            catch (Exception e)
+            {
+                await _log.WriteErrorAsync(nameof(CashInOutQueue), nameof(ProcessManualOperation), null, e);
+                return false;
+            }
 
             return true;
         }
