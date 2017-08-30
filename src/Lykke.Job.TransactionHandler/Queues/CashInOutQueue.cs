@@ -74,8 +74,12 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         public override async Task<bool> ProcessMessage(string message)
         {
+            await _log.WriteInfoAsync(nameof(CashInOutQueue), nameof(ProcessMessage), message, "Entering processmessage method");
+
             var queueMessage = JsonConvert
                 .DeserializeObject<CashInOutQueueMessage>(message);
+
+            await _log.WriteInfoAsync(nameof(CashInOutQueue), nameof(ProcessMessage), message, "message converted from json");
 
             var transaction = await _bitcoinTransactionsRepository.FindByTransactionIdAsync(queueMessage.Id);
             if (transaction == null)
@@ -87,6 +91,8 @@ namespace Lykke.Job.TransactionHandler.Queues
                 await _log.WriteWarningAsync(nameof(CashInOutQueue), nameof(ProcessMessage), message, "unkown transaction");
                 return false;
             }
+
+            await _log.WriteInfoAsync(nameof(CashInOutQueue), nameof(ProcessMessage), message, $"transaction type = {transaction.CommandType}");
 
             try
             {
