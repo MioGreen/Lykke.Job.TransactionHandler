@@ -315,6 +315,10 @@ namespace Lykke.Job.TransactionHandler.Modules
                     new AzureTableStorage<PaymentTransactionEntity>(_dbSettings.ClientPersonalInfoConnString, "PaymentTransactions", _log),
                     new AzureTableStorage<AzureMultiIndex>(_dbSettings.ClientPersonalInfoConnString, "PaymentTransactions", _log)));
 
+            builder.RegisterInstance<IAssetsRepository>(
+                new AssetsRepository(
+                    new AzureTableStorage<AssetEntity>(_dbSettings.DictsConnString, "Dictionaries", _log)));
+
             builder.RegisterInstance<IQuantaCommandProducer>(
                 new SrvQuantaCommandProducer(new AzureQueueExt(_dbSettings.QuantaSrvConnString, "quanta-out")));
 
