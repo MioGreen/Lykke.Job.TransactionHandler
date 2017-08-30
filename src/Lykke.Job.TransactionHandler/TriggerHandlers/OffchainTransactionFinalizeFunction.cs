@@ -317,6 +317,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
                     }
                     else
                     {
+                        tasks.Add(_offchainTransferRepository.CompleteTransfer(trade.TransactionId));
                         tasks.Add(_clientTradesRepository.SetIsSettledAsync(trade.ClientId, trade.ClientTradeId,true));
                     }
                 }
