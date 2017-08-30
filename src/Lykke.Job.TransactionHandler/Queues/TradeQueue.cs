@@ -210,7 +210,7 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                     if (change > 0)
                     {
-                        await _offchainRequestService.CreateOffchainRequest(operation.TransferId, operation.ClientId,
+                        await _offchainRequestService.CreateOffchainRequestAndNotify(operation.TransferId, operation.ClientId,
                             operation.AssetId, change, offchainOrder.OrderId, OffchainTransferType.FromHub);
                         notify.Add(operation.ClientId);
                     }
@@ -231,7 +231,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                         continue;
                     }
 
-                    await _offchainRequestService.CreateOffchainRequest(operation.TransferId, operation.ClientId,
+                    await _offchainRequestService.CreateOffchainRequestAndNotify(operation.TransferId, operation.ClientId,
                         operation.AssetId, operation.Amount, offchainOrder.OrderId, OffchainTransferType.FromHub);
                     notify.Add(operation.ClientId);
                 }
