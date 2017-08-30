@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Common;
 using Common.Log;
 using Lykke.Job.TransactionHandler.Core;
+using Lykke.Job.TransactionHandler.Core.Domain.Assets;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.Blockchain;
 using Lykke.Job.TransactionHandler.Core.Domain.CashOperations;
@@ -37,6 +38,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IBcnClientCredentialsRepository _bcnClientCredentialsRepository;
         private readonly IEthClientEventLogs _ethClientEventLogs;
         private readonly IHistoryWriter _historyWriter;
+        private readonly IAssetsRepository _assetsRepository;
 
         public CashInOutQueue(AppSettings.RabbitMqSettings config, ILog log,
             IBitcoinCommandSender bitcoinCommandSender,
@@ -50,7 +52,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
             ISrvEthereumHelper srvEthereumHelper, IBcnClientCredentialsRepository bcnClientCredentialsRepository,
             IEthClientEventLogs ethClientEventLogs, 
-            IHistoryWriter historyWriter)
+            IHistoryWriter historyWriter, IAssetsRepository assetsRepository)
             : base(config.ExternalHost, config.Port,
                   config.ExchangeCashOperation, "transactions.cashinout",
                   config.Username, config.Password, log)
@@ -69,16 +71,13 @@ namespace Lykke.Job.TransactionHandler.Queues
             _bcnClientCredentialsRepository = bcnClientCredentialsRepository;
             _ethClientEventLogs = ethClientEventLogs;
             _historyWriter = historyWriter;
+            _assetsRepository = assetsRepository;
         }
 
         public override async Task<bool> ProcessMessage(string message)
         {
-            await _log.WriteInfoAsync(nameof(CashInOutQueue), nameof(ProcessMessage), message, "Entering processmessage method");
-
             var queueMessage = JsonConvert
                 .DeserializeObject<CashInOutQueueMessage>(message);
-
-            await _log.WriteInfoAsync(nameof(CashInOutQueue), nameof(ProcessMessage), message, "message converted from json");
 
             var transaction = await _bitcoinTransactionsRepository.FindByTransactionIdAsync(queueMessage.Id);
             if (transaction == null)
@@ -90,8 +89,6 @@ namespace Lykke.Job.TransactionHandler.Queues
                 await _log.WriteWarningAsync(nameof(CashInOutQueue), nameof(ProcessMessage), message, "unkown transaction");
                 return false;
             }
-
-            await _log.WriteInfoAsync(nameof(CashInOutQueue), nameof(ProcessMessage), message, $"transaction type = {transaction.CommandType}");
 
             try
             {
@@ -160,11 +157,13 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         private async Task<bool> ProcessManualOperation(IBitcoinTransaction transaction, CashInOutQueueMessage msg)
         {
+            var asset = await _assetsRepository.GetAssetAsync(msg.AssetId);
+
             var newHistoryEntry = new HistoryEntry
             {
                 ClientId = msg.ClientId,
                 Amount = msg.Amount.ParseAnyDouble(),
-                Currency = msg.AssetId,
+                Currency = asset.Name,
                 DateTime = msg.Date,
                 OpType = "CashInOut",
                 CustomData = new { Id = transaction.TransactionId }.ToJson()
