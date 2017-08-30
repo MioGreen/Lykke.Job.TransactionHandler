@@ -302,9 +302,11 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
         {
             var contextData = transaction.GetContextData<SwapOffchainContextData>();
 
+            var childTransfers = offchainTransfer.GetAdditionalData().ChildTransfers;
+
             foreach (var trade in contextData.Operations)
             {
-                if (trade.TransactionId == offchainTransfer.Id)
+                if (trade.TransactionId == offchainTransfer.Id || childTransfers.Contains(trade.TransactionId))
                 {
                     if (string.IsNullOrWhiteSpace(trade.ClientTradeId))
                     {

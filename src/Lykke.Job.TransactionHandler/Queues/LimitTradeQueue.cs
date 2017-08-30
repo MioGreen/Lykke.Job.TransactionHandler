@@ -215,8 +215,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 return;
             }
 
-            await _offchainRequestService.CreateOffchainRequestAndNotify(executed.TransferId, clientId,
-                executed.AssetId, executed.Amount, order.Id, OffchainTransferType.FromHub);
+            await _offchainRequestService.CreateOffchainRequestAndLock(executed.TransferId, clientId, executed.AssetId, executed.Amount, order.Id, OffchainTransferType.FromHub);
         }
 
         private async Task SendPush(IEnumerable<AggregatedTransfer> aggregatedTransfers, ILimitOrder order, ILimitOrder prevOrderState, OrderStatus status)
@@ -228,7 +227,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             var type = order.Volume > 0 ? OrderType.Buy : OrderType.Sell;
             var typeString = type.ToString().ToLower();
             var assetPair = await _assetsService.TryGetAssetPairAsync(order.AssetPairId);
-            
+
             var receivedAsset = type == OrderType.Buy ? assetPair.BaseAssetId : assetPair.QuotingAssetId;
             var receivedAssetEntity = await _assetsService.TryGetAssetAsync(receivedAsset);
 
@@ -302,7 +301,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 var returnAmount = Math.Max(0, initial - Math.Abs((decimal)executed));
 
                 if (returnAmount > 0)
-                    await _offchainRequestService.CreateOffchainRequestAndNotify(Guid.NewGuid().ToString(), order.ClientId,
+                    await _offchainRequestService.CreateOffchainRequestAndUnlock(Guid.NewGuid().ToString(), order.ClientId,
                         neededAsset, returnAmount, order.Id, OffchainTransferType.FromHub);
             }
             else
@@ -312,7 +311,7 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                 if (remainigVolume > 0)
                 {
-                    await _offchainRequestService.CreateOffchainRequestAndNotify(Guid.NewGuid().ToString(), order.ClientId,
+                    await _offchainRequestService.CreateOffchainRequestAndUnlock(Guid.NewGuid().ToString(), order.ClientId,
                         neededAsset, remainigVolume, order.Id, OffchainTransferType.FromHub);
                 }
             }
