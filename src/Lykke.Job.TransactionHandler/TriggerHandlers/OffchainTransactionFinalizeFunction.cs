@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Common;
@@ -304,22 +305,25 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
 
             var childTransfers = offchainTransfer.GetAdditionalData().ChildTransfers;
 
+            var tasks = new List<Task>();
+
             foreach (var trade in contextData.Operations)
             {
                 if (trade.TransactionId == offchainTransfer.Id || childTransfers.Contains(trade.TransactionId))
                 {
                     if (string.IsNullOrWhiteSpace(trade.ClientTradeId))
                     {
-                        await _log.WriteWarningAsync(nameof(OffchainTransactionFinalizeFunction), nameof(FinalizeSwap), contextData.ToJson(), "Client trade id is missing");
+                        tasks.Add(_log.WriteWarningAsync(nameof(OffchainTransactionFinalizeFunction),
+                            nameof(FinalizeSwap), trade.ToJson(), $"Client trade id is missing, transfer: {offchainTransfer.Id}"));
                     }
                     else
                     {
-                        await _clientTradesRepository.SetIsSettledAsync(trade.ClientId, trade.ClientTradeId, true);
+                        tasks.Add(_clientTradesRepository.SetIsSettledAsync(trade.ClientId, trade.ClientTradeId,true));
                     }
-
-                    break;
                 }
             }
+
+            await Task.WhenAll(tasks);
         }
 
         private Task PostChronoBankCashOut(string address, double amount, string txId)
