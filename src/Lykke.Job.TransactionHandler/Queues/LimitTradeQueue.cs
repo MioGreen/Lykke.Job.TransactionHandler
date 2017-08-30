@@ -125,7 +125,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                             if (prevOrderState == null)
                                 await CreateEvent(limitOrderWithTrades, OrderStatus.InOrderBook);
                             var trades = await ProcessTrades(aggregated, limitOrderWithTrades);
-                            await SendMoney(trades, aggregated, meOrder);
+                            await SendMoney(trades, aggregated, meOrder, status);
                             break;
                         case OrderStatus.Dust:
                         case OrderStatus.NoLiquidity:
@@ -198,7 +198,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             return trades;
         }
 
-        private async Task SendMoney(IClientTrade[] clientTrades, IEnumerable<AggregatedTransfer> aggregatedTransfers, ILimitOrder order)
+        private async Task SendMoney(IClientTrade[] clientTrades, IEnumerable<AggregatedTransfer> aggregatedTransfers, ILimitOrder order, OrderStatus status)
         {
             if (await IsClientTrusted(order.ClientId))
                 return;
@@ -214,7 +214,10 @@ namespace Lykke.Job.TransactionHandler.Queues
                 return;
             }
 
-            await _offchainRequestService.CreateOffchainRequestAndLock(executed.TransferId, clientId, executed.AssetId, executed.Amount, order.Id, OffchainTransferType.FromHub);
+            if (status == OrderStatus.Matched)
+                await _offchainRequestService.CreateOffchainRequestAndUnlock(executed.TransferId, clientId, executed.AssetId, executed.Amount, order.Id, OffchainTransferType.FromHub);
+            else
+                await _offchainRequestService.CreateOffchainRequestAndLock(executed.TransferId, clientId, executed.AssetId, executed.Amount, order.Id, OffchainTransferType.FromHub);
         }
 
         private async Task SendPush(IEnumerable<AggregatedTransfer> aggregatedTransfers, ILimitOrder order, ILimitOrder prevOrderState, OrderStatus status)
