@@ -300,30 +300,51 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
 
         private async Task FinalizeSwap(IBitcoinTransaction transaction, IOffchainTransfer offchainTransfer)
         {
-            var contextData = transaction.GetContextData<SwapOffchainContextData>();
+            var transactions = new Dictionary<string, IBitcoinTransaction> { { transaction.TransactionId, transaction } };
 
-            var childTransfers = offchainTransfer.GetAdditionalData().ChildTransfers;
+            var allTransfers = new HashSet<string>(offchainTransfer.GetAdditionalData().ChildTransfers) { offchainTransfer.Id };
 
-            var tasks = new List<Task>();
-
-            foreach (var trade in contextData.Operations)
+            foreach (var transferId in allTransfers)
             {
-                if (trade.TransactionId == offchainTransfer.Id || childTransfers.Contains(trade.TransactionId))
+                try
                 {
-                    if (string.IsNullOrWhiteSpace(trade.ClientTradeId))
+                    var transfer = await _offchainTransferRepository.GetTransfer(transferId);
+
+                    if (!transactions.ContainsKey(transfer.OrderId))
                     {
-                        tasks.Add(_log.WriteWarningAsync(nameof(OffchainTransactionFinalizeFunction),
-                            nameof(FinalizeSwap), trade.ToJson(), $"Client trade id is missing, transfer: {offchainTransfer.Id}"));
+                        var tr = await _bitCoinTransactionsRepository.FindByTransactionIdAsync(transfer.OrderId);
+                        if (tr == null)
+                        {
+                            await _log.WriteWarningAsync(nameof(OffchainTransactionFinalizeFunction),
+                                nameof(FinalizeSwap), "", $"Transaction is missing, transfer: {transferId}");
+                            continue;
+                        }
+
+                        transactions.Add(transfer.OrderId, tr);
                     }
-                    else
+
+                    var contextData = transactions[transfer.OrderId].GetContextData<SwapOffchainContextData>();
+
+                    var operation = contextData.Operations.FirstOrDefault(x => x.TransactionId == transferId);
+
+                    if (string.IsNullOrWhiteSpace(operation?.ClientTradeId))
                     {
-                        tasks.Add(_offchainTransferRepository.CompleteTransfer(trade.TransactionId));
-                        tasks.Add(_clientTradesRepository.SetIsSettledAsync(trade.ClientId, trade.ClientTradeId,true));
+                        await _log.WriteWarningAsync(nameof(OffchainTransactionFinalizeFunction),
+                            nameof(FinalizeSwap), operation?.ToJson(),
+                            $"Client trade id is missing, transfer: {transferId}");
+                        continue;
                     }
+
+                    await Task.WhenAll(
+                        _offchainTransferRepository.CompleteTransfer(transferId),
+                        _clientTradesRepository.SetIsSettledAsync(operation.ClientId, operation.ClientTradeId, true)
+                    );
+                }
+                catch (Exception e)
+                {
+                    await _log.WriteErrorAsync(nameof(OffchainTransactionFinalizeFunction), nameof(FinalizeSwap), $"Transfer: {transferId}", e);
                 }
             }
-
-            await Task.WhenAll(tasks);
         }
 
         private Task PostChronoBankCashOut(string address, double amount, string txId)
