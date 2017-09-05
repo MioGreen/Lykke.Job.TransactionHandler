@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using AzureStorage.Tables;
@@ -8,6 +9,7 @@ using Lykke.Common.ApiLibrary.Swagger;
 using Lykke.Job.TransactionHandler.Core;
 using Lykke.Job.TransactionHandler.Models;
 using Lykke.Job.TransactionHandler.Modules;
+using Lykke.Job.TransactionHandler.Queues;
 using Lykke.Job.TransactionHandler.Services;
 using Lykke.JobTriggers.Extenstions;
 using Lykke.Logs;
@@ -25,6 +27,12 @@ namespace Lykke.Job.TransactionHandler
         public IHostingEnvironment Environment { get; }
         public IContainer ApplicationContainer { get; set; }
         public IConfigurationRoot Configuration { get; }
+
+        private readonly IEnumerable<Type> _subscribers = new List<Type>
+        {
+            typeof(CashInOutQueue), typeof(EthereumEventsQueue), typeof(LimitTradeQueue),
+            typeof(TradeQueue), typeof(TransferQueue)
+        };
 
         public Startup(IHostingEnvironment env)
         {
@@ -76,6 +84,8 @@ namespace Lykke.Job.TransactionHandler
 
             ApplicationContainer = builder.Build();
 
+            StartSubscribers();
+
             return new AutofacServiceProvider(ApplicationContainer);
         }
 
@@ -94,6 +104,7 @@ namespace Lykke.Job.TransactionHandler
 
             appLifetime.ApplicationStopped.Register(() =>
             {
+                StopSubscribers();
                 ApplicationContainer.Dispose();
             });
         }
@@ -137,6 +148,22 @@ namespace Lykke.Job.TransactionHandler
             }
 
             return aggregateLogger;
+        }
+
+        private void StartSubscribers()
+        {
+            foreach (var subscriber in _subscribers)
+            {
+                ((IQueueSubscriber)ApplicationContainer.Resolve(subscriber)).Start();
+            }
+        }
+
+        private void StopSubscribers()
+        {
+            foreach (var subscriber in _subscribers)
+            {
+                ((IQueueSubscriber)ApplicationContainer.Resolve(subscriber)).Stop();
+            }
         }
     }
 }
