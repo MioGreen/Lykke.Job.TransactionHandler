@@ -13,6 +13,7 @@ using Lykke.Job.TransactionHandler.Core.Domain.MarginTrading;
 using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
 using Lykke.Job.TransactionHandler.Core.Domain.PaymentSystems;
 using Lykke.Job.TransactionHandler.Core.Services.AppNotifications;
+using Lykke.Job.TransactionHandler.Core.Services.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Services.BitCoin.BitCoinApi;
 using Lykke.Job.TransactionHandler.Core.Services.ChronoBank;
 using Lykke.Job.TransactionHandler.Core.Services.MarginTrading;
@@ -31,6 +32,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
     public class OffchainTransactionFinalizeFunction
     {
         private readonly IBitCoinTransactionsRepository _bitCoinTransactionsRepository;
+        private readonly IBitcoinTransactionService _bitcoinTransactionService;
         private readonly ICashOperationsRepository _cashOperationsRepository;
         private readonly ICashOutAttemptRepository _cashOutAttemptRepository;
         private readonly IClientTradesRepository _clientTradesRepository;
@@ -85,7 +87,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             IMarginTradingPaymentLogRepository marginTradingPaymentLog,
             IPaymentTransactionsRepository paymentTransactionsRepository,
             IAppNotifications appNotifications,
-            ICachedAssetsService assetsService)
+            ICachedAssetsService assetsService, IBitcoinTransactionService bitcoinTransactionService)
         {
             _bitCoinTransactionsRepository = bitCoinTransactionsRepository;
             _log = log;
@@ -113,6 +115,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             _paymentTransactionsRepository = paymentTransactionsRepository;
             _appNotifications = appNotifications;
             _assetsService = assetsService;
+            _bitcoinTransactionService = bitcoinTransactionService;
         }
 
         [QueueTrigger("offchain-finalization", notify: true, maxDequeueCount: 1, maxPollingIntervalMs: 100)]
@@ -158,21 +161,23 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
 
         private async Task FinalizeIssue(IBitcoinTransaction transaction)
         {
-            var contextData = transaction.GetContextData<IssueContextData>();
+            var contextData = await _bitcoinTransactionService.GetTransactionContext<IssueContextData>(transaction.TransactionId);
 
             await _cashOperationsRepository.SetIsSettledAsync(contextData.ClientId, contextData.CashOperationId, true);
         }
 
-        private Task FinalizeTransfer(IBitcoinTransaction transaction, IOffchainTransfer transfer)
+        private async Task FinalizeTransfer(IBitcoinTransaction transaction, IOffchainTransfer transfer)
         {
-            var contextData = transaction.GetContextData<TransferContextData>();
+            var contextData = await _bitcoinTransactionService.GetTransactionContext<TransferContextData>(transaction.TransactionId);
 
             switch (contextData.TransferType)
             {
                 case TransferType.ToMarginAccount:
-                    return FinalizeTransferToMargin(contextData, transfer);
+                    await FinalizeTransferToMargin(contextData, transfer);
+                    return;
                 case TransferType.Common:
-                    return FinalizeCommonTransfer(transaction, contextData);
+                    await FinalizeCommonTransfer(transaction, contextData);
+                    return;
                 default:
                     throw new ArgumentOutOfRangeException();
             }
@@ -269,7 +274,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
                 await _srvSlackNotifications.SendNotification(ChannelTypes.Errors, $"Cashout failed in ME, client: {offchainTransfer.ClientId}, transfer: {transaction.TransactionId}, ME code result: {data.Code}");
             }
 
-            var contextData = transaction.GetContextData<CashOutContextData>();
+            var contextData = await _bitcoinTransactionService.GetTransactionContext<CashOutContextData>(transaction.TransactionId);
 
             var swiftData = contextData.AddData?.SwiftData;
             if (swiftData != null)
@@ -300,7 +305,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
 
         private async Task FinalizeSwap(IBitcoinTransaction transaction, IOffchainTransfer offchainTransfer)
         {
-            var transactions = new Dictionary<string, IBitcoinTransaction> { { transaction.TransactionId, transaction } };
+            var transactionsContextData = new Dictionary<string, SwapOffchainContextData>();
 
             var allTransfers = new HashSet<string>(offchainTransfer.GetAdditionalData().ChildTransfers) { offchainTransfer.Id };
 
@@ -310,28 +315,28 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
                 {
                     var transfer = await _offchainTransferRepository.GetTransfer(transferId);
 
-                    if (!transactions.ContainsKey(transfer.OrderId))
+                    if (!transactionsContextData.ContainsKey(transfer.OrderId))
                     {
-                        var tr = await _bitCoinTransactionsRepository.FindByTransactionIdAsync(transfer.OrderId);
-                        if (tr == null)
+                        var ctx = await _bitcoinTransactionService.GetTransactionContext<SwapOffchainContextData>(transaction.TransactionId);
+                        if (ctx == null)
                         {
                             await _log.WriteWarningAsync(nameof(OffchainTransactionFinalizeFunction),
-                                nameof(FinalizeSwap), "", $"Transaction is missing, transfer: {transferId}");
+                                nameof(FinalizeSwap), "", $"Transaction context data is missing, transfer: {transferId}");
                             continue;
                         }
 
-                        transactions.Add(transfer.OrderId, tr);
+                        transactionsContextData.Add(transfer.OrderId, ctx);
                     }
 
-                    var contextData = transactions[transfer.OrderId].GetContextData<SwapOffchainContextData>();
+                    var contextData = transactionsContextData[transfer.OrderId];
 
                     var operation = contextData.Operations.FirstOrDefault(x => x.TransactionId == transferId);
 
-                    if (string.IsNullOrWhiteSpace(operation?.ClientTradeId))
+                    if (string.IsNullOrWhiteSpace(operation?.ClientTradeId) || string.IsNullOrWhiteSpace(operation?.ClientId))
                     {
                         await _log.WriteWarningAsync(nameof(OffchainTransactionFinalizeFunction),
                             nameof(FinalizeSwap), operation?.ToJson(),
-                            $"Client trade id is missing, transfer: {transferId}");
+                            $"Missing fields. Client trade id {operation?.ClientTradeId}, client {operation?.ClientId}, transfer: {transferId}");
                         continue;
                     }
 

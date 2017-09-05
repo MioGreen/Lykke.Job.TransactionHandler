@@ -7,15 +7,18 @@ using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.CashOperations;
 using Lykke.Job.TransactionHandler.Core.Domain.Clients.Core.Clients;
 using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
+using Lykke.Job.TransactionHandler.Core.Services.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Services.Offchain;
-using Lykke.Job.TransactionHandler.Queues.Common;
 using Lykke.Job.TransactionHandler.Queues.Models;
-using Newtonsoft.Json;
+using Lykke.RabbitMqBroker;
+using Lykke.RabbitMqBroker.Subscriber;
 
 namespace Lykke.Job.TransactionHandler.Queues
 {
-    public class TransferQueue : RabbitQueue
+    public class TransferQueue : IQueueSubscriber
     {
+        private const string QueueName = "transactions.transfer";
+
         private readonly ILog _log;
         private readonly IBitcoinCommandSender _bitcoinCommandSender;
         private readonly IWalletCredentialsRepository _walletCredentialsRepository;
@@ -24,16 +27,18 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IOffchainRequestService _offchainRequestService;
         private readonly IClientSettingsRepository _clientSettingsRepository;
         private readonly IOffchainIgnoreRepository _offchainIgnoreRepository;
+        private readonly IBitcoinTransactionService _bitcoinTransactionService;
+
+        private readonly AppSettings.RabbitMqSettings _rabbitConfig;
+        private RabbitMqSubscriber<TransferQueueMessage> _subscriber;
 
         public TransferQueue(AppSettings.RabbitMqSettings config, ILog log,
             IBitcoinCommandSender bitcoinCommandSender,
             ITransferEventsRepository transferEventsRepository,
             IWalletCredentialsRepository walletCredentialsRepository,
-            IBitCoinTransactionsRepository bitCoinTransactionsRepository, IOffchainRequestService offchainRequestService, IClientSettingsRepository clientSettingsRepository, IOffchainIgnoreRepository offchainIgnoreRepository)
-            : base(config.ExternalHost, config.Port,
-                  config.ExchangeTransfer, "transactions.transfer",
-                  config.Username, config.Password, log)
+            IBitCoinTransactionsRepository bitCoinTransactionsRepository, IOffchainRequestService offchainRequestService, IClientSettingsRepository clientSettingsRepository, IOffchainIgnoreRepository offchainIgnoreRepository, IBitcoinTransactionService bitcoinTransactionService)
         {
+            _rabbitConfig = config;
             _log = log;
             _bitcoinCommandSender = bitcoinCommandSender;
             _transferEventsRepository = transferEventsRepository;
@@ -42,12 +47,45 @@ namespace Lykke.Job.TransactionHandler.Queues
             _offchainRequestService = offchainRequestService;
             _clientSettingsRepository = clientSettingsRepository;
             _offchainIgnoreRepository = offchainIgnoreRepository;
+            _bitcoinTransactionService = bitcoinTransactionService;
         }
 
-        public override async Task<bool> ProcessMessage(string message)
+        public void Start()
         {
-            var queueMessage = JsonConvert
-                .DeserializeObject<TransferQueueMessage>(message);
+            var settings = new RabbitMqSubscriptionSettings
+            {
+                ConnectionString = _rabbitConfig.ConnectionString,
+                QueueName = QueueName,
+                ExchangeName = _rabbitConfig.ExchangeTransfer,
+                DeadLetterExchangeName = $"{_rabbitConfig.ExchangeCashOperation}.dlx",
+                RoutingKey = "",
+                IsDurable = true
+            };
+
+            try
+            {
+                _subscriber = new RabbitMqSubscriber<TransferQueueMessage>(settings, new DeadQueueErrorHandlingStrategy(_log, settings))
+                    .SetMessageDeserializer(new JsonMessageDeserializer<TransferQueueMessage>())
+                    .SetMessageReadStrategy(new MessageReadQueueStrategy())
+                    .Subscribe(ProcessMessage)
+                    .CreateDefaultBinding()
+                    .SetLogger(_log)
+                    .Start();
+            }
+            catch (Exception ex)
+            {
+                _log.WriteErrorAsync(nameof(TransferQueue), nameof(Start), null, ex).Wait();
+                throw;
+            }
+        }
+
+        public void Stop()
+        {
+            _subscriber?.Stop();
+        }
+
+        public async Task<bool> ProcessMessage(TransferQueueMessage queueMessage)
+        {
             var amount = queueMessage.Amount.ParseAnyDouble();
 
             //Get client wallets
@@ -75,11 +113,11 @@ namespace Lykke.Job.TransactionHandler.Queues
             var transaction = await _bitCoinTransactionsRepository.FindByTransactionIdAsync(queueMessage.Id);
             if (transaction == null)
             {
-                await _log.WriteWarningAsync(nameof(TransferQueue), nameof(ProcessMessage), message, "unkown transaction");
+                await _log.WriteWarningAsync(nameof(TransferQueue), nameof(ProcessMessage), queueMessage.ToJson(), "unkown transaction");
                 return false;
             }
 
-            var contextData = transaction.GetContextData<TransferContextData>();
+            var contextData = await _bitcoinTransactionService.GetTransactionContext<TransferContextData>(transaction.TransactionId);
 
             if (contextData == null)
             {
@@ -107,8 +145,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 TransactionId = Guid.Parse(queueMessage.Id)
             };
 
-            await _bitCoinTransactionsRepository.UpdateAsync(transaction.TransactionId,
-                cmd.ToJson(), contextJson, "");
+            await _bitCoinTransactionsRepository.UpdateAsync(transaction.TransactionId, cmd.ToJson(), null, "");
 
             if (await _clientSettingsRepository.IsOffchainClient(queueMessage.ToClientid))
             {
@@ -130,6 +167,11 @@ namespace Lykke.Job.TransactionHandler.Queues
 
 
             return true;
+        }
+
+        public void Dispose()
+        {
+            Stop();
         }
     }
 }
