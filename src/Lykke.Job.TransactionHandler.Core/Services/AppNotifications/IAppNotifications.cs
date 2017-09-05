@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using Lykke.Job.TransactionHandler.Core.Domain.Exchange;
 
 namespace Lykke.Job.TransactionHandler.Core.Services.AppNotifications
 {
@@ -19,9 +20,10 @@ namespace Lykke.Job.TransactionHandler.Core.Services.AppNotifications
         MarginCall = 11,
         OffchainRequest = 12,
         NeedTransactionSign = 13,
-        PushTxDialog = 14
+        PushTxDialog = 14,
+        LimitOrderEvent = 15
     }
-
+    
     public static class EventsAndEntities
     {
         // ReSharper disable once InconsistentNaming
@@ -43,6 +45,8 @@ namespace Lykke.Job.TransactionHandler.Core.Services.AppNotifications
 
         public const string Offchain = "Offchain";
         public const string OffchainRequest = "OffchainRequest";
+
+        public const string LimitOrderEvent = "LimitOrderEvent";
 
         public static string GetEntity(NotificationType notification)
         {
@@ -66,6 +70,8 @@ namespace Lykke.Job.TransactionHandler.Core.Services.AppNotifications
                     return NeedTransactionSign;
                 case NotificationType.OffchainRequest:
                     return Offchain;
+                case NotificationType.LimitOrderEvent:
+                    return LimitOrderEvent;
                 default:
                     throw new ArgumentException("Unknown notification");
             }
@@ -99,6 +105,8 @@ namespace Lykke.Job.TransactionHandler.Core.Services.AppNotifications
                     return NeedTransactionSign;
                 case NotificationType.PushTxDialog:
                     return PushTxDialog;
+                case NotificationType.LimitOrderEvent:
+                    return LimitOrderEvent;
                 default:
                     throw new ArgumentException("Unknown notification");
             }
@@ -108,6 +116,8 @@ namespace Lykke.Job.TransactionHandler.Core.Services.AppNotifications
     public interface IAppNotifications
     {
         Task SendDataNotificationToAllDevicesAsync(string[] notificationIds, NotificationType type, string entity, string id = "");
+
+        Task SendLimitOrderNotification(string[] notificationsIds, string message, OrderType orderType, OrderStatus status);
 
         Task SendTextNotificationAsync(string[] notificationsIds, NotificationType type, string message);
 

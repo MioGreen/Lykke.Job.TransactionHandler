@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Lykke.Job.TransactionHandler.Core.Domain.Offchain
 {
@@ -9,6 +10,7 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Offchain
 
     public interface IOffchainIgnoreRepository
     {
+        Task<IEnumerable<IOffchainIgnore>> GetIgnoredClients();
         Task<bool> IsIgnored(string client);
     }
 }

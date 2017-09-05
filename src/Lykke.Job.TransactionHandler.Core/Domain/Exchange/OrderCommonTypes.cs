@@ -2,21 +2,33 @@
 
 namespace Lykke.Job.TransactionHandler.Core.Domain.Exchange
 {
-    public enum OrderAction
+    public enum OrderType
     {
         Buy, Sell
     }
 
     public enum OrderStatus
     {
-        Ok = 0,
-        LowBalance = 401,
-        AlreadyProcessed = 402,
-        UnknownAsset = 410,
-        NoLiquidity = 411,
-        NotEnoughFunds = 412,
-        Dust = 413,
-        Runtime = 500
+        //Init status, limit order in order book
+        InOrderBook
+        //Partially matched
+        , Processing
+        //Fully matched
+        , Matched
+        //Not enough funds on account
+        , NotEnoughFunds
+        //Reserved volume greater than balance
+        , ReservedVolumeGreaterThanBalance
+        //No liquidity
+        , NoLiquidity
+        //Unknown asset
+        , UnknownAsset
+        //One of trades or whole order has volume/price*volume less then configured dust
+        , Dust
+        //Cancelled
+        , Cancelled
+        // negative spread 
+        , LeadToNegativeSpread
     }
 
     public interface IOrderBase
@@ -36,26 +48,26 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Exchange
         public const string Buy = "buy";
         public const string Sell = "sell";
 
-        public static OrderAction OrderAction(this IOrderBase orderBase)
+        public static OrderType OrderAction(this IOrderBase orderBase)
         {
-            return orderBase.Volume > 0 ? Exchange.OrderAction.Buy : Exchange.OrderAction.Sell;
+            return orderBase.Volume > 0 ? Exchange.OrderType.Buy : Exchange.OrderType.Sell;
         }
 
-        public static OrderAction? GetOrderAction(string actionWord)
+        public static OrderType? GetOrderAction(string actionWord)
         {
             if (actionWord.ToLower() == Buy)
-                return Exchange.OrderAction.Buy;
+                return Exchange.OrderType.Buy;
             if (actionWord.ToLower() == Sell)
-                return Exchange.OrderAction.Sell;
+                return Exchange.OrderType.Sell;
 
             return null;
         }
 
-        public static OrderAction ViceVersa(this OrderAction orderAction)
+        public static OrderType ViceVersa(this OrderType orderType)
         {
-            if (orderAction == Exchange.OrderAction.Buy)
-                return Exchange.OrderAction.Sell;
-            return Exchange.OrderAction.Buy;
+            if (orderType == Exchange.OrderType.Buy)
+                return Exchange.OrderType.Sell;
+            return Exchange.OrderType.Buy;
         }
     }
 }

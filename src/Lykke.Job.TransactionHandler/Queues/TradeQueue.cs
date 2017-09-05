@@ -43,7 +43,6 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly ITradeOperationsRepositoryClient _clientTradesRepositoryClient;
         private readonly IOffchainRequestService _offchainRequestService;
         private readonly IOffchainOrdersRepository _offchainOrdersRepository;
-        private readonly IOffchainTransferRepository _offchainTransferRepository;
         private readonly IOffchainIgnoreRepository _offchainIgnoreRepository;
         private readonly IEthereumTransactionRequestRepository _ethereumTransactionRequestRepository;
         private readonly ISrvEthereumHelper _srvEthereumHelper;
@@ -55,7 +54,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IMapper _mapper;
 
         public TradeQueue(
-            AppSettings.RabbitMqSettings config, 
+            AppSettings.RabbitMqSettings config,
             ILog log,
             IBitcoinCommandSender bitcoinCommandSender,
             IWalletCredentialsRepository walletCredentialsRepository,
@@ -63,13 +62,12 @@ namespace Lykke.Job.TransactionHandler.Queues
             IMarketOrdersRepository marketOrdersRepository,
             ITradeOperationsRepositoryClient clientTradesRepositoryClient, 
             IOffchainRequestService offchainRequestService,
-            IOffchainOrdersRepository offchainOrdersRepository, 
-            IOffchainTransferRepository offchainTransferRepository,
-            IOffchainIgnoreRepository offchainIgnoreRepository, 
+            IOffchainOrdersRepository offchainOrdersRepository,
+            IOffchainIgnoreRepository offchainIgnoreRepository,
             IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
-            ISrvEthereumHelper srvEthereumHelper, 
+            ISrvEthereumHelper srvEthereumHelper,
             ICachedAssetsService assetsService,
-            IBcnClientCredentialsRepository bcnClientCredentialsRepository, 
+            IBcnClientCredentialsRepository bcnClientCredentialsRepository,
             AppSettings.EthereumSettings settings,
             IEthClientEventLogs ethClientEventLogs,
             IMapper mapper)
@@ -84,7 +82,6 @@ namespace Lykke.Job.TransactionHandler.Queues
             _clientTradesRepositoryClient = clientTradesRepositoryClient;
             _offchainRequestService = offchainRequestService;
             _offchainOrdersRepository = offchainOrdersRepository;
-            _offchainTransferRepository = offchainTransferRepository;
             _offchainIgnoreRepository = offchainIgnoreRepository;
             _ethereumTransactionRequestRepository = ethereumTransactionRequestRepository;
             _srvEthereumHelper = srvEthereumHelper;
@@ -171,7 +168,6 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         private async Task<bool> ProcessOffchainMessage(IOffchainOrder offchainOrder, TradeQueueItem queueMessage)
         {
-            var clientTransfer = (await _offchainTransferRepository.GetTransfersByOrder(offchainOrder.ClientId, offchainOrder.OrderId)).FirstOrDefault();
             var ethereumTxRequest = await _ethereumTransactionRequestRepository.GetByOrderAsync(offchainOrder.OrderId);
 
             var walletCredsMarket = await _walletCredentialsRepository.GetAsync(queueMessage.Trades[0].MarketClientId);
@@ -179,7 +175,8 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             var clientTrades = queueMessage.ToDomainOffchain(walletCredsMarket, walletCredsLimit, await _assetsService.GetAllAssetsAsync());
 
-            var operations = AggregateSwaps(queueMessage.Trades);
+            // get operations only by market order user (limit user will be processed in limit trade queue)
+            var operations = AggregateSwaps(queueMessage.Trades).Where(x=>x.ClientId == queueMessage.Order.ClientId).ToList();
 
             await CreateTransaction(offchainOrder.Id, operations, clientTrades);
 
@@ -210,23 +207,18 @@ namespace Lykke.Job.TransactionHandler.Queues
                         continue;   //guarantee transfer already sent for eth
 
 
-                    if (clientTransfer != null)
+                    var change = offchainOrder.ReservedVolume - Math.Abs(operation.Amount);
+
+                    if (change < 0)
+                        await _log.WriteWarningAsync(nameof(TradeQueue), nameof(ProcessOffchainMessage),
+                            $"Order: [{offchainOrder.OrderId}], data: [{operation.ToJson()}]",
+                            "Diff is less than ZERO !");
+
+                    if (change > 0)
                     {
-                        await _offchainTransferRepository.CompleteTransfer(clientTransfer.Id);
-
-                        var change = clientTransfer.Amount - Math.Abs(operation.Amount);
-
-                        if (change < 0)
-                            await _log.WriteWarningAsync(nameof(TradeQueue), nameof(ProcessOffchainMessage),
-                                $"Order: [{offchainOrder.OrderId}], data: [{operation.ToJson()}]",
-                                "Diff is less than ZERO !");
-
-                        if (change > 0)
-                        {
-                            await _offchainRequestService.CreateOffchainRequest(operation.TransferId, operation.ClientId,
-                                operation.AssetId, change, offchainOrder.OrderId, OffchainTransferType.FromHub);
-                            notify.Add(operation.ClientId);
-                        }
+                        await _offchainRequestService.CreateOffchainRequest(operation.TransferId, operation.ClientId,
+                            operation.AssetId, change, offchainOrder.OrderId, OffchainTransferType.FromHub);
+                        notify.Add(operation.ClientId);
                     }
                 }
 
@@ -327,7 +319,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 var change = ethereumTxRequest.Volume - Math.Abs(clientEthSellOperation.Amount);
 
                 EthereumResponse<OperationResponse> res;
-                var minAmountForAsset = (decimal) Math.Pow(10, -asset.Accuracy);
+                var minAmountForAsset = (decimal)Math.Pow(10, -asset.Accuracy);
                 if (change > 0 && Math.Abs(change) >= minAmountForAsset)
                 {
                     res = await _srvEthereumHelper.SendTransferWithChangeAsync(change,
