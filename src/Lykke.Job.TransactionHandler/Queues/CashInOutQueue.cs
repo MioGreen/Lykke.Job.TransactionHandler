@@ -19,6 +19,10 @@ using Lykke.RabbitMqBroker;
 using Lykke.RabbitMqBroker.Subscriber;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.Assets.Client.Models;
+using Lykke.Service.OperationsRepository.Client.Abstractions.CashOperations;
+using CashInOutOperation = Lykke.Service.OperationsRepository.AutorestClient.Models.CashInOutOperation;
+using CashOperationType = Lykke.Service.OperationsRepository.AutorestClient.Models.CashOperationType;
+using TransactionStates = Lykke.Service.OperationsRepository.AutorestClient.Models.TransactionStates;
 using Lykke.Service.OperationsHistory.HistoryWriter.Abstractions;
 using Lykke.Service.OperationsHistory.HistoryWriter.Model;
 using Newtonsoft.Json;
@@ -31,7 +35,7 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         private readonly ILog _log;
         private readonly IBitcoinCommandSender _bitcoinCommandSender;
-        private readonly ICashOperationsRepository _cashOperationsRepository;
+        private readonly ICashOperationsRepositoryClient _cashOperationsRepositoryClient;
         private readonly IWalletCredentialsRepository _walletCredentialsRepository;
         private readonly IBitCoinTransactionsRepository _bitcoinTransactionsRepository;
         private readonly IForwardWithdrawalRepository _forwardWithdrawalRepository;
@@ -51,7 +55,7 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         public CashInOutQueue(AppSettings.RabbitMqSettings config, ILog log,
             IBitcoinCommandSender bitcoinCommandSender,
-            ICashOperationsRepository cashOperationsRepository,
+            ICashOperationsRepositoryClient cashOperationsRepositoryClient,
             IWalletCredentialsRepository walletCredentialsRepository,
             IBitCoinTransactionsRepository bitcoinTransactionsRepository,
             IForwardWithdrawalRepository forwardWithdrawalRepository,
@@ -66,7 +70,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             _rabbitConfig = config;
             _log = log;
             _bitcoinCommandSender = bitcoinCommandSender;
-            _cashOperationsRepository = cashOperationsRepository;
+            _cashOperationsRepositoryClient = cashOperationsRepositoryClient;
             _walletCredentialsRepository = walletCredentialsRepository;
             _bitcoinTransactionsRepository = bitcoinTransactionsRepository;
             _forwardWithdrawalRepository = forwardWithdrawalRepository;
@@ -122,7 +126,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             if (transaction == null)
             {
                 // external cashin
-                if (_cashOperationsRepository.GetAsync(queueMessage.ClientId, queueMessage.Id) != null)
+                if (_cashOperationsRepositoryClient.GetAsync(queueMessage.ClientId, queueMessage.Id) != null)
                     return await ProcessExternalCashin(queueMessage);
 
                 await _log.WriteWarningAsync(nameof(CashInOutQueue), nameof(ProcessMessage), queueMessage.ToJson(), "unkown transaction");
@@ -160,7 +164,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             var context = await _bitcoinTransactionService.GetTransactionContext<UncolorContextData>(transaction.TransactionId);
 
             //Register cash operation
-            var cashOperationId = await _cashOperationsRepository
+            var cashOperationId = await _cashOperationsRepositoryClient
                 .RegisterAsync(new CashInOutOperation
                 {
                     Id = Guid.NewGuid().ToString("N"),
@@ -240,7 +244,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             {
                 var baseAsset = await _assetsService.TryGetAssetAsync(asset.ForwardBaseAsset);
 
-                var forwardCashInId = await _cashOperationsRepository
+                var forwardCashInId = await _cashOperationsRepositoryClient
                     .RegisterAsync(new CashInOutOperation
                     {
                         Id = Guid.NewGuid().ToString(),
@@ -256,13 +260,13 @@ namespace Lykke.Job.TransactionHandler.Queues
                         State = isBtcOffchainClient ?
                             TransactionStates.InProcessOffchain : TransactionStates.InProcessOnchain
                     });
-
+                
                 await _forwardWithdrawalRepository.SetLinkedCashInOperationId(msg.ClientId, context.AddData.ForwardWithdrawal.Id,
                     forwardCashInId);
             }
 
             //Register cash operation
-            var cashOperationId = await _cashOperationsRepository
+            var cashOperationId = await _cashOperationsRepositoryClient
                 .RegisterAsync(new CashInOutOperation
                 {
                     Id = Guid.NewGuid().ToString(),
@@ -353,7 +357,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             var context = await _bitcoinTransactionService.GetTransactionContext<IssueContextData>(transaction.TransactionId);
 
             //Register cash operation
-            var cashOperationId = await _cashOperationsRepository
+            var cashOperationId = await _cashOperationsRepositoryClient
                 .RegisterAsync(new CashInOutOperation
                 {
                     Id = Guid.NewGuid().ToString("N"),

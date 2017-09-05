@@ -69,6 +69,7 @@ using Lykke.MatchingEngine.Connector.Services;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.ExchangeOperations.Client;
 using Lykke.Service.ExchangeOperations.Contracts;
+using Lykke.Service.OperationsRepository.Client;
 using Lykke.Service.OperationsHistory.HistoryWriter.Abstractions;
 using Lykke.Service.OperationsHistory.HistoryWriter.Implementation;
 using Lykke.Service.PersonalData.Client;
@@ -205,6 +206,9 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.RegisterType<EmailSender>().As<IEmailSender>().SingleInstance();
             builder.RegisterType<SrvEmailsFacade>().As<ISrvEmailsFacade>().SingleInstance();
 
+            builder.RegisterOperationsRepositoryClients(_settings.OperationsRepositoryClient.ServiceUrl, _log,
+                _settings.OperationsRepositoryClient.RequestTimeout);
+
             builder.RegisterType<BitcoinTransactionService>().As<IBitcoinTransactionService>().SingleInstance();
             var historyWriter = new HistoryWriter(_dbSettings.HistoryLogsConnString, _log);
             builder.RegisterInstance(historyWriter).As<IHistoryWriter>();
@@ -236,19 +240,6 @@ namespace Lykke.Job.TransactionHandler.Modules
                 new BcnClientCredentialsRepository(
                     new AzureTableStorage<BcnCredentialsRecordEntity>(_dbSettings.ClientPersonalInfoConnString, "BcnClientCredentials", _log)));
 
-            builder.RegisterInstance<ICashOperationsRepository>(
-                new CashOperationsRepository(
-                    new AzureTableStorage<CashInOutOperationEntity>(_dbSettings.ClientPersonalInfoConnString, "OperationsCash", _log),
-                    new AzureTableStorage<AzureIndex>(_dbSettings.ClientPersonalInfoConnString, "OperationsCash", _log)));
-
-            builder.RegisterInstance<ICashOutAttemptRepository>(
-                new CashOutAttemptRepository(
-                    new AzureTableStorage<CashOutAttemptEntity>(_dbSettings.BalancesInfoConnString, "CashOutAttempt", _log)));
-
-            builder.RegisterInstance<IClientTradesRepository>(
-                new ClientTradesRepository(
-                    new AzureTableStorage<ClientTradeEntity>(_dbSettings.HTradesConnString, "Trades", _log)));
-
             builder.RegisterInstance<ILimitTradeEventsRepository>(
                 new LimitTradeEventsRepository(
                     new AzureTableStorage<LimitTradeEventEntity>(_dbSettings.ClientPersonalInfoConnString, "LimitTradeEvents", _log)));
@@ -256,11 +247,6 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.RegisterInstance<IForwardWithdrawalRepository>(
                 new ForwardWithdrawalRepository(
                     new AzureTableStorage<ForwardWithdrawalEntity>(_dbSettings.BalancesInfoConnString, "ForwardWithdrawal", _log)));
-
-            builder.RegisterInstance<ITransferEventsRepository>(
-                new TransferEventsRepository(
-                    new AzureTableStorage<TransferEventEntity>(_dbSettings.ClientPersonalInfoConnString, "Transfers", _log),
-                    new AzureTableStorage<AzureIndex>(_dbSettings.ClientPersonalInfoConnString, "Transfers", _log)));
 
             builder.RegisterInstance<IChronoBankCommandProducer>(
                 new SrvChronoBankCommandProducer(new AzureQueueExt(_dbSettings.ChronoBankSrvConnString, "chronobank-out")));
