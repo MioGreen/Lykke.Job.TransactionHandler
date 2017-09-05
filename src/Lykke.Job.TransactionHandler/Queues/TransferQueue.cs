@@ -59,7 +59,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 ConnectionString = _rabbitConfig.ConnectionString,
                 QueueName = QueueName,
                 ExchangeName = _rabbitConfig.ExchangeTransfer,
-                DeadLetterExchangeName = _rabbitConfig.ExchangeDlx,
+                DeadLetterExchangeName = $"{_rabbitConfig.ExchangeTransfer}.dlx",
                 RoutingKey = "",
                 IsDurable = true
             };
