@@ -172,7 +172,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
                 await _bitCoinTransactionsRepository.UpdateAsync(id, request, null, response?.ToJson());
             }
 
-            await _bitcoinTransactionService.SetTransactionContext(id, contextData);
+            await _bitcoinTransactionService.SetStringTransactionContext(id, contextData);
 
             return response.Transaction;
         }
