@@ -38,5 +38,10 @@ namespace Lykke.Job.TransactionHandler.Services.BitCoin
         {
             return _contextBlobStorage.Set(transactionId, context.ToJson());
         }
+
+        public Task CreateOrUpdateAsync(string meOrderId)
+        {
+            return _bitCoinTransactionsRepository.CreateOrUpdateAsync(meOrderId, BitCoinCommands.SwapOffchain);
+        }
     }
 }

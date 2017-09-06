@@ -321,11 +321,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
                     {
                         var ctx = await _bitcoinTransactionService.GetTransactionContext<SwapOffchainContextData>(transaction.TransactionId);
                         if (ctx == null)
-                        {
-                            await _log.WriteWarningAsync(nameof(OffchainTransactionFinalizeFunction),
-                                nameof(FinalizeSwap), "", $"Transaction context data is missing, transfer: {transferId}");
                             continue;
-                        }
 
                         transactionsContextData.Add(transfer.OrderId, ctx);
                     }
