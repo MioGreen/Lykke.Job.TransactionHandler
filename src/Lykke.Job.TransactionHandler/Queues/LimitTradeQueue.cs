@@ -140,6 +140,8 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                     await _limitOrdersRepository.CreateOrUpdateAsync(meOrder);
 
+                    await _bitcoinTransactionService.CreateOrUpdateAsync(meOrder.Id);
+
                     var status = (OrderStatus)Enum.Parse(typeof(OrderStatus), meOrder.Status);
 
                     var aggregated = AggregateSwaps(limitOrderWithTrades.Trades);

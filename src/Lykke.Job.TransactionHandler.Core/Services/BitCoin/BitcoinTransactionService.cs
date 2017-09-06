@@ -10,5 +10,7 @@ namespace Lykke.Job.TransactionHandler.Core.Services.BitCoin
         Task<T> GetTransactionContext<T>(string transactionId);
 
         Task SetTransactionContext<T>(string transactionId, T context);
+
+        Task CreateOrUpdateAsync(string meOrderId);
     }
 }
