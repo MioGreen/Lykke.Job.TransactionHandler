@@ -176,7 +176,8 @@ namespace Lykke.Job.TransactionHandler.Queues
             };
 
             await _bitcoinTransactionsRepository.UpdateAsync(transaction.TransactionId, cmd.ToJson(), null, "");
-            await _bitcoinTransactionService.SetTransactionContext(transaction.TransactionId, contextJson);
+
+            await _bitcoinTransactionService.SetTransactionContext(transaction.TransactionId, context);
 
             //Send to bitcoin
             await _bitcoinCommandSender.SendCommand(cmd);
@@ -256,7 +257,7 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             await _bitcoinTransactionsRepository.UpdateAsync(transaction.TransactionId, cmd.ToJson(), null, "");
 
-            await _bitcoinTransactionService.SetTransactionContext(transaction.TransactionId, contextJson);
+            await _bitcoinTransactionService.SetTransactionContext(transaction.TransactionId, context);
 
             if (!isOffchainClient && asset.Blockchain == Blockchain.Bitcoin)
                 await _bitcoinCommandSender.SendCommand(cmd);
@@ -340,9 +341,9 @@ namespace Lykke.Job.TransactionHandler.Queues
                 TransactionId = Guid.Parse(transaction.TransactionId)
             };
 
-            await _bitcoinTransactionsRepository.UpdateAsync(transaction.TransactionId, cmd.ToJson(), contextJson, "");
+            await _bitcoinTransactionsRepository.UpdateAsync(transaction.TransactionId, cmd.ToJson(), null, "");
 
-            await _bitcoinTransactionService.SetTransactionContext(transaction.TransactionId, contextJson);
+            await _bitcoinTransactionService.SetTransactionContext(transaction.TransactionId, context);
 
             if (isOffchain)
                 await _offchainRequestService.CreateOffchainRequestAndNotify(transaction.TransactionId, msg.ClientId, msg.AssetId, (decimal)amount, null, OffchainTransferType.CashinToClient);

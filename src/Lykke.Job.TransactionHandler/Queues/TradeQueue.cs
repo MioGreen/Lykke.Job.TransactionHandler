@@ -154,7 +154,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 SwapContextData contextData = PrepareContextData(tradeRecords);
 
                 await _bitcoinTransactionsRepository.CreateAsync(transactionId.ToString(), BitCoinCommands.Swap, "", null, "");
-                await _bitcoinTransactionService.SetTransactionContext(transactionId.ToString(), contextData.ToJson());
+                await _bitcoinTransactionService.SetTransactionContext(transactionId.ToString(), contextData);
 
                 var amount1 = trade.MarketVolume;
                 var amount2 = trade.LimitVolume;
@@ -409,7 +409,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             }
 
             await _bitcoinTransactionsRepository.CreateAsync(orderId, BitCoinCommands.SwapOffchain, "", null, "");
-            await _bitcoinTransactionService.SetTransactionContext(orderId, contextData.ToJson());
+            await _bitcoinTransactionService.SetTransactionContext(orderId, contextData);
         }
 
         private List<AggregatedTransfer> AggregateSwaps(IEnumerable<TradeQueueItem.TradeInfo> swaps)
