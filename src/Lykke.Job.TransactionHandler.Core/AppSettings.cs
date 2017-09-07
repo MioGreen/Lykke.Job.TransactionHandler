@@ -129,8 +129,6 @@ namespace Lykke.Job.TransactionHandler.Core
             public string ExchangeSwapOperation { get; set; }
 
             public string ExchangeEthereumCashIn { get; set; }
-
-            public string ExchangeDlx { get; set; }
         }
 
         public class SlackNotificationsSettings
