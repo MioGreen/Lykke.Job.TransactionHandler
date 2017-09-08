@@ -202,16 +202,36 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         private async Task<bool> ProcessManualOperation(IBitcoinTransaction transaction, CashInOutQueueMessage msg)
         {
-            var asset = await _assetsRepository.GetAssetAsync(msg.AssetId);
+            var asset = await _assetsService.TryGetAssetAsync(msg.AssetId);
+            var walletCredentials = await _walletCredentialsRepository.GetAsync(msg.ClientId);
+            var context = transaction.GetContextData<CashOutContextData>();
+            var isOffchainClient = await _clientSettingsRepository.IsOffchainClient(msg.ClientId);
+            var isBtcOffchainClient = isOffchainClient && asset.Blockchain == Blockchain.Bitcoin;
+
+            var operation = new CashInOutOperation
+            {
+                Id = Guid.NewGuid().ToString(),
+                ClientId = msg.ClientId,
+                Multisig = walletCredentials.MultiSig,
+                AssetId = msg.AssetId,
+                Amount = msg.Amount.ParseAnyDouble(),
+                DateTime = DateTime.UtcNow,
+                AddressFrom = walletCredentials.MultiSig,
+                AddressTo = context.Address,
+                TransactionId = msg.Id,
+                Type = CashOperationType.None,
+                BlockChainHash = asset.IssueAllowed && isBtcOffchainClient ? string.Empty : transaction.BlockchainHash,
+                State = GetState(transaction, isBtcOffchainClient)
+            };
 
             var newHistoryEntry = new HistoryEntry
             {
-                ClientId = msg.ClientId,
-                Amount = msg.Amount.ParseAnyDouble(),
+                ClientId = operation.ClientId,
+                Amount = operation.Amount,
                 Currency = asset.Name,
                 DateTime = msg.Date,
                 OpType = "CashInOut",
-                CustomData = new { Id = transaction.TransactionId }.ToJson()
+                CustomData = JsonConvert.SerializeObject(operation)
             };
 
             try
