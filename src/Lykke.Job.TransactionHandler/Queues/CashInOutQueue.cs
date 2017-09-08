@@ -142,7 +142,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                     case BitCoinCommands.ManualUpdate:
                         return await ProcessManualOperation(transaction, queueMessage);
                     default:
-                        await _log.WriteWarningAsync(nameof(CashInOutQueue), nameof(ProcessMessage), message, $"Unknown command type (value = [{transaction.CommandType}])");
+                        await _log.WriteWarningAsync(nameof(CashInOutQueue), nameof(ProcessMessage), queueMessage.ToJson(), $"Unknown command type (value = [{transaction.CommandType}])");
                         return false;
                 }
             }
