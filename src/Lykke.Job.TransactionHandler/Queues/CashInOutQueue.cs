@@ -2,8 +2,6 @@
 using System.Threading.Tasks;
 using Common;
 using Common.Log;
-using Lykke.Job.TransactionHandler.Core;
-using Lykke.Job.TransactionHandler.Core.Domain.Assets;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.Blockchain;
 using Lykke.Job.TransactionHandler.Core.Domain.CashOperations;
@@ -48,7 +46,6 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IEthClientEventLogs _ethClientEventLogs;
         private readonly IBitcoinTransactionService _bitcoinTransactionService;
         private readonly IHistoryWriter _historyWriter;
-        private readonly IAssetsRepository _assetsRepository;
 
         private readonly AppSettings.RabbitMqSettings _rabbitConfig;
         private RabbitMqSubscriber<CashInOutQueueMessage> _subscriber;
@@ -65,7 +62,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
             ISrvEthereumHelper srvEthereumHelper, IBcnClientCredentialsRepository bcnClientCredentialsRepository,
             IEthClientEventLogs ethClientEventLogs, IBitcoinTransactionService bitcoinTransactionService,
-            IHistoryWriter historyWriter, IAssetsRepository assetsRepository)
+            IHistoryWriter historyWriter)
         {
             _rabbitConfig = config;
             _log = log;
@@ -82,7 +79,6 @@ namespace Lykke.Job.TransactionHandler.Queues
             _bcnClientCredentialsRepository = bcnClientCredentialsRepository;
             _ethClientEventLogs = ethClientEventLogs;
             _historyWriter = historyWriter;
-            _assetsRepository = assetsRepository;
             _bitcoinTransactionService = bitcoinTransactionService;
         }
 
@@ -227,7 +223,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             var newHistoryEntry = new HistoryEntry
             {
                 ClientId = operation.ClientId,
-                Amount = operation.Amount,
+                Amount = operation.Amount ?? default(double),
                 Currency = asset.Name,
                 DateTime = msg.Date,
                 OpType = "CashInOut",
