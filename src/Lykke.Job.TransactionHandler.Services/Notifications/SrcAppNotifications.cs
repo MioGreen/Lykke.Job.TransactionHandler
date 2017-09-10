@@ -138,7 +138,8 @@ namespace Lykke.Job.TransactionHandler.Services.Notifications
             {
                 Aps = new DataNotificationFields
                 {
-                    Type = type
+                    Type = type,
+                    Sound = null
                 }
             };
 
