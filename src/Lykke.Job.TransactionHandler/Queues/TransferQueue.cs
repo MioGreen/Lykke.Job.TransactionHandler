@@ -156,6 +156,8 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             await _bitCoinTransactionsRepository.UpdateAsync(transaction.TransactionId, cmd.ToJson(), null, "");
 
+            await _bitcoinTransactionService.SetTransactionContext(transaction.TransactionId, contextData);
+
             if (await _clientSettingsRepository.IsOffchainClient(queueMessage.ToClientid))
             {
                 if (!await _offchainIgnoreRepository.IsIgnored(queueMessage.ToClientid))
