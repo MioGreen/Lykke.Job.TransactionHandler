@@ -2,8 +2,6 @@
 using System.Threading.Tasks;
 using Common;
 using Common.Log;
-using Lykke.Job.TransactionHandler.Core;
-using Lykke.Job.TransactionHandler.Core.Domain.Assets;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.Blockchain;
 using Lykke.Job.TransactionHandler.Core.Domain.CashOperations;
@@ -48,7 +46,6 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IEthClientEventLogs _ethClientEventLogs;
         private readonly IBitcoinTransactionService _bitcoinTransactionService;
         private readonly IHistoryWriter _historyWriter;
-        private readonly IAssetsRepository _assetsRepository;
 
         private readonly AppSettings.RabbitMqSettings _rabbitConfig;
         private RabbitMqSubscriber<CashInOutQueueMessage> _subscriber;
@@ -65,7 +62,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
             ISrvEthereumHelper srvEthereumHelper, IBcnClientCredentialsRepository bcnClientCredentialsRepository,
             IEthClientEventLogs ethClientEventLogs, IBitcoinTransactionService bitcoinTransactionService,
-            IHistoryWriter historyWriter, IAssetsRepository assetsRepository)
+            IHistoryWriter historyWriter)
         {
             _rabbitConfig = config;
             _log = log;
@@ -82,7 +79,6 @@ namespace Lykke.Job.TransactionHandler.Queues
             _bcnClientCredentialsRepository = bcnClientCredentialsRepository;
             _ethClientEventLogs = ethClientEventLogs;
             _historyWriter = historyWriter;
-            _assetsRepository = assetsRepository;
             _bitcoinTransactionService = bitcoinTransactionService;
         }
 
@@ -146,7 +142,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                     case BitCoinCommands.ManualUpdate:
                         return await ProcessManualOperation(transaction, queueMessage);
                     default:
-                        await _log.WriteWarningAsync(nameof(CashInOutQueue), nameof(ProcessMessage), queueMessage.ToJson(), "unkown command type");
+                        await _log.WriteWarningAsync(nameof(CashInOutQueue), nameof(ProcessMessage), queueMessage.ToJson(), $"Unknown command type (value = [{transaction.CommandType}])");
                         return false;
                 }
             }
@@ -202,16 +198,36 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         private async Task<bool> ProcessManualOperation(IBitcoinTransaction transaction, CashInOutQueueMessage msg)
         {
-            var asset = await _assetsRepository.GetAssetAsync(msg.AssetId);
+            var asset = await _assetsService.TryGetAssetAsync(msg.AssetId);
+            var walletCredentials = await _walletCredentialsRepository.GetAsync(msg.ClientId);
+            var context = transaction.GetContextData<CashOutContextData>();
+            var isOffchainClient = await _clientSettingsRepository.IsOffchainClient(msg.ClientId);
+            var isBtcOffchainClient = isOffchainClient && asset.Blockchain == Blockchain.Bitcoin;
+
+            var operation = new CashInOutOperation
+            {
+                Id = Guid.NewGuid().ToString(),
+                ClientId = msg.ClientId,
+                Multisig = walletCredentials.MultiSig,
+                AssetId = msg.AssetId,
+                Amount = msg.Amount.ParseAnyDouble(),
+                DateTime = DateTime.UtcNow,
+                AddressFrom = walletCredentials.MultiSig,
+                AddressTo = context.Address,
+                TransactionId = msg.Id,
+                Type = CashOperationType.None,
+                BlockChainHash = asset.IssueAllowed && isBtcOffchainClient ? string.Empty : transaction.BlockchainHash,
+                State = GetState(transaction, isBtcOffchainClient)
+            };
 
             var newHistoryEntry = new HistoryEntry
             {
-                ClientId = msg.ClientId,
-                Amount = msg.Amount.ParseAnyDouble(),
+                ClientId = operation.ClientId,
+                Amount = operation.Amount ?? default(double),
                 Currency = asset.Name,
                 DateTime = msg.Date,
                 OpType = "CashInOut",
-                CustomData = new { Id = transaction.TransactionId }.ToJson()
+                CustomData = JsonConvert.SerializeObject(operation)
             };
 
             try
