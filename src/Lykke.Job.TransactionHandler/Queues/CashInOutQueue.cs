@@ -3,17 +3,18 @@ using System.Threading.Tasks;
 using Common;
 using Common.Log;
 using Lykke.Job.TransactionHandler.Core;
-using Lykke.Job.TransactionHandler.Core.Domain.Assets;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.Blockchain;
 using Lykke.Job.TransactionHandler.Core.Domain.CashOperations;
 using Lykke.Job.TransactionHandler.Core.Domain.Clients.Core.Clients;
 using Lykke.Job.TransactionHandler.Core.Domain.Ethereum;
 using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
+using Lykke.Job.TransactionHandler.Core.Services.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Services.Ethereum;
 using Lykke.Job.TransactionHandler.Core.Services.Offchain;
-using Lykke.Job.TransactionHandler.Queues.Common;
 using Lykke.Job.TransactionHandler.Queues.Models;
+using Lykke.RabbitMqBroker;
+using Lykke.RabbitMqBroker.Subscriber;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.Assets.Client.Models;
 using Lykke.Service.OperationsHistory.HistoryWriter.Abstractions;
@@ -22,8 +23,10 @@ using Newtonsoft.Json;
 
 namespace Lykke.Job.TransactionHandler.Queues
 {
-    public class CashInOutQueue : RabbitQueue
+    public class CashInOutQueue : IQueueSubscriber
     {
+        private const string QueueName = "transactions.cashinout";
+
         private readonly ILog _log;
         private readonly IBitcoinCommandSender _bitcoinCommandSender;
         private readonly ICashOperationsRepository _cashOperationsRepository;
@@ -37,8 +40,11 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly ISrvEthereumHelper _srvEthereumHelper;
         private readonly IBcnClientCredentialsRepository _bcnClientCredentialsRepository;
         private readonly IEthClientEventLogs _ethClientEventLogs;
+        private readonly IBitcoinTransactionService _bitcoinTransactionService;
         private readonly IHistoryWriter _historyWriter;
-        private readonly IAssetsRepository _assetsRepository;
+
+        private readonly AppSettings.RabbitMqSettings _rabbitConfig;
+        private RabbitMqSubscriber<CashInOutQueueMessage> _subscriber;
 
         public CashInOutQueue(AppSettings.RabbitMqSettings config, ILog log,
             IBitcoinCommandSender bitcoinCommandSender,
@@ -50,13 +56,13 @@ namespace Lykke.Job.TransactionHandler.Queues
             IOffchainRequestService offchainRequestService,
             IClientSettingsRepository clientSettingsRepository,
             IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
-            ISrvEthereumHelper srvEthereumHelper, IBcnClientCredentialsRepository bcnClientCredentialsRepository,
+            ISrvEthereumHelper srvEthereumHelper, 
+            IBcnClientCredentialsRepository bcnClientCredentialsRepository,
             IEthClientEventLogs ethClientEventLogs, 
-            IHistoryWriter historyWriter, IAssetsRepository assetsRepository)
-            : base(config.ExternalHost, config.Port,
-                  config.ExchangeCashOperation, "transactions.cashinout",
-                  config.Username, config.Password, log)
+            IHistoryWriter historyWriter,
+			IBitcoinTransactionService bitcoinTransactionService)
         {
+            _rabbitConfig = config;
             _log = log;
             _bitcoinCommandSender = bitcoinCommandSender;
             _cashOperationsRepository = cashOperationsRepository;
@@ -70,15 +76,46 @@ namespace Lykke.Job.TransactionHandler.Queues
             _srvEthereumHelper = srvEthereumHelper;
             _bcnClientCredentialsRepository = bcnClientCredentialsRepository;
             _ethClientEventLogs = ethClientEventLogs;
+            _bitcoinTransactionService = bitcoinTransactionService;
             _historyWriter = historyWriter;
-            _assetsRepository = assetsRepository;
         }
 
-        public override async Task<bool> ProcessMessage(string message)
+        public void Start()
         {
-            var queueMessage = JsonConvert
-                .DeserializeObject<CashInOutQueueMessage>(message);
+            var settings = new RabbitMqSubscriptionSettings
+            {
+                ConnectionString = _rabbitConfig.ConnectionString,
+                QueueName = QueueName,
+                ExchangeName = _rabbitConfig.ExchangeCashOperation,
+                DeadLetterExchangeName = $"{_rabbitConfig.ExchangeCashOperation}.dlx",
+                RoutingKey = "",
+                IsDurable = true
+            };
 
+            try
+            {
+                _subscriber = new RabbitMqSubscriber<CashInOutQueueMessage>(settings, new DeadQueueErrorHandlingStrategy(_log, settings))
+                    .SetMessageDeserializer(new JsonMessageDeserializer<CashInOutQueueMessage>())
+                    .SetMessageReadStrategy(new MessageReadQueueStrategy())
+                    .Subscribe(ProcessMessage)
+                    .CreateDefaultBinding()
+                    .SetLogger(_log)
+                    .Start();
+            }
+            catch (Exception ex)
+            {
+                _log.WriteErrorAsync(nameof(CashInOutQueue), nameof(Start), null, ex).Wait();
+                throw;
+            }
+        }
+
+        public void Stop()
+        {
+            _subscriber?.Stop();
+        }
+
+        public async Task<bool> ProcessMessage(CashInOutQueueMessage queueMessage)
+        {
             var transaction = await _bitcoinTransactionsRepository.FindByTransactionIdAsync(queueMessage.Id);
             if (transaction == null)
             {
@@ -86,7 +123,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 if (_cashOperationsRepository.GetAsync(queueMessage.ClientId, queueMessage.Id) != null)
                     return await ProcessExternalCashin(queueMessage);
 
-                await _log.WriteWarningAsync(nameof(CashInOutQueue), nameof(ProcessMessage), message, "unkown transaction");
+                await _log.WriteWarningAsync(nameof(CashInOutQueue), nameof(ProcessMessage), queueMessage.ToJson(), "unkown transaction");
                 return false;
             }
 
@@ -103,13 +140,13 @@ namespace Lykke.Job.TransactionHandler.Queues
                     case BitCoinCommands.ManualUpdate:
                         return await ProcessManualOperation(transaction, queueMessage);
                     default:
-                        await _log.WriteWarningAsync(nameof(CashInOutQueue), nameof(ProcessMessage), message, $"Unknown command type (value = [{transaction.CommandType}])");
+                        await _log.WriteWarningAsync(nameof(CashInOutQueue), nameof(ProcessMessage), queueMessage.ToJson(), $"Unknown command type (value = [{transaction.CommandType}])");
                         return false;
                 }
             }
             catch (Exception ex)
             {
-                await _log.WriteErrorAsync(nameof(CashInOutQueue), nameof(ProcessMessage), message, ex);
+                await _log.WriteErrorAsync(nameof(CashInOutQueue), nameof(ProcessMessage), queueMessage.ToJson(), ex);
                 return false;
             }
         }
@@ -118,7 +155,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         {
             var amount = msg.Amount.ParseAnyDouble();
             //Get uncolor context data
-            var context = transaction.GetContextData<UncolorContextData>();
+            var context = await _bitcoinTransactionService.GetTransactionContext<UncolorContextData>(transaction.TransactionId);
 
             //Register cash operation
             var cashOperationId = await _cashOperationsRepository
@@ -146,8 +183,10 @@ namespace Lykke.Job.TransactionHandler.Queues
                 Address = context.AddressFrom,
                 TransactionId = Guid.Parse(msg.Id)
             };
-            await _bitcoinTransactionsRepository.UpdateAsync(transaction.TransactionId, cmd.ToJson(),
-                contextJson, "");
+
+            await _bitcoinTransactionsRepository.UpdateAsync(transaction.TransactionId, cmd.ToJson(), null, "");
+
+            await _bitcoinTransactionService.SetTransactionContext(transaction.TransactionId, context);
 
             //Send to bitcoin
             await _bitcoinCommandSender.SendCommand(cmd);
@@ -208,7 +247,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             var walletCredentials = await _walletCredentialsRepository
                 .GetAsync(msg.ClientId);
             var amount = msg.Amount.ParseAnyDouble();
-            var context = transaction.GetContextData<CashOutContextData>();
+            var context = await _bitcoinTransactionService.GetTransactionContext<CashOutContextData>(transaction.TransactionId);
 
             var asset = await _assetsService.TryGetAssetAsync(msg.AssetId);
 
@@ -272,8 +311,9 @@ namespace Lykke.Job.TransactionHandler.Queues
                 TransactionId = Guid.Parse(transaction.TransactionId)
             };
 
-            await _bitcoinTransactionsRepository.UpdateAsync(transaction.TransactionId, cmd.ToJson(),
-                contextJson, "");
+            await _bitcoinTransactionsRepository.UpdateAsync(transaction.TransactionId, cmd.ToJson(), null, "");
+
+            await _bitcoinTransactionService.SetTransactionContext(transaction.TransactionId, context);
 
             if (!isOffchainClient && asset.Blockchain == Blockchain.Bitcoin)
                 await _bitcoinCommandSender.SendCommand(cmd);
@@ -288,7 +328,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                     var txRequest =
                         await _ethereumTransactionRequestRepository.GetAsync(Guid.Parse(transaction.TransactionId));
 
-                    txRequest.OperationIds = new[] {cashOperationId};
+                    txRequest.OperationIds = new[] { cashOperationId };
                     await _ethereumTransactionRequestRepository.UpdateAsync(txRequest);
 
                     var response = await _srvEthereumHelper.SendCashOutAsync(txRequest.Id,
@@ -307,7 +347,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 if (!string.IsNullOrEmpty(errMsg))
                 {
                     await _ethClientEventLogs.WriteEvent(msg.ClientId, Event.Error,
-                        new {Request = transaction.TransactionId, Error = errMsg}.ToJson());
+                        new { Request = transaction.TransactionId, Error = errMsg }.ToJson());
                 }
             }
 
@@ -316,7 +356,7 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         private static TransactionStates GetState(IBitcoinTransaction transaction, bool isBtcOffchainClient)
         {
-            return isBtcOffchainClient ? 
+            return isBtcOffchainClient ?
                 (string.IsNullOrWhiteSpace(transaction.BlockchainHash) ? TransactionStates.SettledOffchain : TransactionStates.SettledOnchain) :
                 (string.IsNullOrWhiteSpace(transaction.BlockchainHash) ? TransactionStates.InProcessOnchain : TransactionStates.SettledOnchain);
         }
@@ -329,7 +369,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             var walletCredentials = await _walletCredentialsRepository
                 .GetAsync(msg.ClientId);
             var amount = msg.Amount.ParseAnyDouble();
-            var context = transaction.GetContextData<IssueContextData>();
+            var context = await _bitcoinTransactionService.GetTransactionContext<IssueContextData>(transaction.TransactionId);
 
             //Register cash operation
             var cashOperationId = await _cashOperationsRepository
@@ -356,8 +396,10 @@ namespace Lykke.Job.TransactionHandler.Queues
                 Context = contextJson,
                 TransactionId = Guid.Parse(transaction.TransactionId)
             };
-            await _bitcoinTransactionsRepository.UpdateAsync(transaction.TransactionId, cmd.ToJson(),
-                contextJson, "");
+
+            await _bitcoinTransactionsRepository.UpdateAsync(transaction.TransactionId, cmd.ToJson(), null, "");
+
+            await _bitcoinTransactionService.SetTransactionContext(transaction.TransactionId, context);
 
             if (isOffchain)
                 await _offchainRequestService.CreateOffchainRequestAndNotify(transaction.TransactionId, msg.ClientId, msg.AssetId, (decimal)amount, null, OffchainTransferType.CashinToClient);
@@ -376,6 +418,11 @@ namespace Lykke.Job.TransactionHandler.Queues
             var amount = msg.Amount.ParseAnyDouble();
             await _offchainRequestService.CreateOffchainRequestAndNotify(Guid.NewGuid().ToString(), msg.ClientId, msg.AssetId, (decimal)amount, null, OffchainTransferType.CashinFromClient);
             return true;
+        }
+
+        public void Dispose()
+        {
+            Stop();
         }
     }
 }

@@ -27,11 +27,15 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Offchain
         int TryCount { get; }
 
         OffchainTransferType TransferType { get; }
+
+        DateTime? ServerLock { get; set; }
     }
 
     public interface IOffchainRequestRepository
     {
-        Task<IOffchainRequest> CreateRequest(string transferId, string clientId, string assetId, RequestType type, OffchainTransferType transferType);
+        Task<IOffchainRequest> CreateRequest(string transferId, string clientId, string assetId, RequestType type, OffchainTransferType transferType, DateTime? serverLock);
+
+        Task<IOffchainRequest> CreateRequestAndLock(string transferId, string clientId, string assetId, RequestType type, OffchainTransferType transferType, DateTime? lockDate);
 
         Task<IEnumerable<IOffchainRequest>> GetRequestsForClient(string clientId);
 

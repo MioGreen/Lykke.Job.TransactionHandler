@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using AzureStorage;
 using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
@@ -25,23 +26,20 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
 
         public OffchainTransferType TransferType { get; set; }
 
+        public DateTime? ServerLock { get; set; }
+
         public static class ByRecord
         {
             public static string Partition = "OffchainSignatureRequestEntity";
 
-            public static OffchainRequestEntity Create(string id, string transferId, string clientId, string assetId, RequestType type, OffchainTransferType transferType)
+            public static OffchainRequestEntity Create(string id, string transferId, string clientId, string assetId, RequestType type, OffchainTransferType transferType, DateTime? serverLock)
             {
-                return new OffchainRequestEntity
-                {
-                    RowKey = id,
-                    PartitionKey = Partition,
-                    TransferId = transferId,
-                    ClientId = clientId,
-                    AssetId = assetId,
-                    Type = type,
-                    CreateDt = DateTime.UtcNow,
-                    TransferType = transferType
-                };
+                var item = CreateNew(transferId, clientId, assetId, type, transferType, serverLock);
+
+                item.PartitionKey = Partition;
+                item.RowKey = id;
+
+                return item;
             }
         }
 
@@ -52,19 +50,14 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
                 return clientId;
             }
 
-            public static OffchainRequestEntity Create(string id, string transferId, string clientId, string assetId, RequestType type, OffchainTransferType transferType)
+            public static OffchainRequestEntity Create(string id, string transferId, string clientId, string assetId, RequestType type, OffchainTransferType transferType, DateTime? serverLock)
             {
-                return new OffchainRequestEntity
-                {
-                    RowKey = id,
-                    PartitionKey = GeneratePartition(clientId),
-                    TransferId = transferId,
-                    ClientId = clientId,
-                    AssetId = assetId,
-                    Type = type,
-                    CreateDt = DateTime.UtcNow,
-                    TransferType = transferType
-                };
+                var item = CreateNew(transferId, clientId, assetId, type, transferType, serverLock);
+
+                item.PartitionKey = GeneratePartition(clientId);
+                item.RowKey = id;
+
+                return item;
             }
         }
 
@@ -87,9 +80,25 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
                     Type = request.Type,
                     CreateDt = request.CreateDt == DateTime.MinValue ? DateTime.UtcNow : request.CreateDt,
                     TryCount = request.TryCount,
-                    TransferType = request.TransferType
+                    TransferType = request.TransferType,
+                    ServerLock = request.ServerLock,
+                    StartProcessing = request.StartProcessing
                 };
             }
+        }
+
+        public static OffchainRequestEntity CreateNew(string transferId, string clientId, string assetId, RequestType type, OffchainTransferType transferType, DateTime? serverLock = null)
+        {
+            return new OffchainRequestEntity
+            {
+                TransferId = transferId,
+                ClientId = clientId,
+                AssetId = assetId,
+                Type = type,
+                CreateDt = DateTime.UtcNow,
+                TransferType = transferType,
+                ServerLock = serverLock
+            };
         }
     }
 
@@ -105,14 +114,14 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
             _table = table;
         }
 
-        public async Task<IOffchainRequest> CreateRequest(string transferId, string clientId, string assetId, RequestType type, OffchainTransferType transferType)
+        public async Task<IOffchainRequest> CreateRequest(string transferId, string clientId, string assetId, RequestType type, OffchainTransferType transferType, DateTime? serverLock = null)
         {
             var id = Guid.NewGuid().ToString();
 
-            var byClient = OffchainRequestEntity.ByClient.Create(id, transferId, clientId, assetId, type, transferType);
+            var byClient = OffchainRequestEntity.ByClient.Create(id, transferId, clientId, assetId, type, transferType, serverLock);
             await _table.InsertAsync(byClient);
 
-            var byRecord = OffchainRequestEntity.ByRecord.Create(id, transferId, clientId, assetId, type, transferType);
+            var byRecord = OffchainRequestEntity.ByRecord.Create(id, transferId, clientId, assetId, type, transferType, serverLock);
             await _table.InsertAsync(byRecord);
 
             return byRecord;
@@ -131,6 +140,31 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
         public async Task<IOffchainRequest> GetRequest(string requestId)
         {
             return await _table.GetDataAsync(OffchainRequestEntity.ByRecord.Partition, requestId);
+        }
+
+        public async Task<IOffchainRequest> CreateRequestAndLock(string transferId, string clientId, string assetId,
+            RequestType type, OffchainTransferType transferType, DateTime? lockDate)
+        {
+            var existingRequest = (await GetRequestsForClient(clientId)).FirstOrDefault(x => x.AssetId == assetId
+                                                                                        && x.TransferType == transferType
+                                                                                        && x.StartProcessing == null);
+
+            if (existingRequest == null)
+                return await CreateRequest(transferId, clientId, assetId, type, transferType, lockDate);
+
+            var replaced = await _table.MergeAsync(OffchainRequestEntity.ByRecord.Partition, existingRequest.RequestId, entity =>
+            {
+                if (entity.StartProcessing != null)
+                    return null;
+
+                entity.ServerLock = lockDate;
+                return entity;
+            });
+
+            if (replaced == null)
+                return await CreateRequest(transferId, clientId, assetId, type, transferType, lockDate);
+
+            return replaced;
         }
 
         public async Task<IOffchainRequest> LockRequest(string requestId)

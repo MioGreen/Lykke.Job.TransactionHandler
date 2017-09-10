@@ -28,9 +28,9 @@ namespace Lykke.Job.TransactionHandler.Services.Offchain
 
         public async Task CreateOffchainRequest(string transactionId, string clientId, string assetId, decimal amount, string orderId, OffchainTransferType type)
         {
-            var transfer = await _offchainTransferRepository.CreateTransfer(transactionId, clientId, assetId, amount, type, null, orderId);
+            await _offchainTransferRepository.CreateTransfer(transactionId, clientId, assetId, amount, type, null, orderId);
 
-            await _offchainRequestRepository.CreateRequest(transfer.Id, clientId, assetId, RequestType.RequestTransfer, type);
+            await _offchainRequestRepository.CreateRequest(transactionId, clientId, assetId, RequestType.RequestTransfer, type, null);
         }
 
         public async Task NotifyUser(string clientId)
@@ -49,6 +49,36 @@ namespace Lykke.Job.TransactionHandler.Services.Offchain
         {
             await CreateOffchainRequest(transactionId, clientId, assetId, amount, orderId, type);
             await NotifyUser(clientId);
+        }
+
+        public Task CreateOffchainRequestAndLock(string transactionId, string clientId, string assetId, decimal amount, string orderId,
+            OffchainTransferType type)
+        {
+            return CreateAndAggregate(transactionId, clientId, assetId, amount, orderId, type, DateTime.UtcNow);
+        }
+
+        public async Task CreateOffchainRequestAndUnlock(string transactionId, string clientId, string assetId, decimal amount,
+            string orderId, OffchainTransferType type)
+        {
+            await CreateAndAggregate(transactionId, clientId, assetId, amount, orderId, type, null);
+            await NotifyUser(clientId);
+        }
+
+        private async Task CreateAndAggregate(string transactionId, string clientId, string assetId, decimal amount,
+            string orderId, OffchainTransferType type, DateTime? lockTime)
+        {
+            var newTransfer = await _offchainTransferRepository.CreateTransfer(transactionId, clientId, assetId, amount, type, null, orderId);
+
+            var request = await _offchainRequestRepository.CreateRequestAndLock(transactionId, clientId, assetId, RequestType.RequestTransfer, type, lockTime);
+
+            var oldTransferId = request.TransferId;
+
+            //aggregate transfers
+            if (oldTransferId != newTransfer.Id)
+            {
+                await _offchainTransferRepository.AddChildTransfer(oldTransferId, newTransfer);
+                await _offchainTransferRepository.SetTransferIsChild(newTransfer.Id, oldTransferId);
+            }
         }
 
         public async Task CreateHubCashoutRequests(string clientId, decimal bitcoinAmount = 0, decimal lkkAmount = 0)

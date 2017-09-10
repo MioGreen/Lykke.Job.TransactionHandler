@@ -114,6 +114,8 @@ namespace Lykke.Job.TransactionHandler.Core
 
         public class RabbitMqSettings
         {
+            public string ConnectionString { get; set; }
+
             public string ExternalHost { get; set; }
 
             public int Port { get; set; }

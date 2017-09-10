@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Common;
+using Newtonsoft.Json;
 
 namespace Lykke.Job.TransactionHandler.Core.Domain.Offchain
 {
@@ -31,6 +33,30 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Offchain
         OffchainTransferType Type { get; }
         bool ChannelClosing { get; }
         bool Onchain { get; }
+        bool IsChild { get; }
+        string ParentTransferId { get; }
+        string AdditionalDataJson { get; set; }   
+    }
+    
+    public class OffchainTransferAdditionalData
+    {
+        public List<string> ChildTransfers { get; set; } = new List<string>();
+    }
+
+    public static class OffchainTransferExtenstions
+    {
+        public static OffchainTransferAdditionalData GetAdditionalData(this IOffchainTransfer transfer)
+        {
+            if (string.IsNullOrWhiteSpace(transfer.AdditionalDataJson))
+                return new OffchainTransferAdditionalData();
+
+            return JsonConvert.DeserializeObject<OffchainTransferAdditionalData>(transfer.AdditionalDataJson);
+        }
+
+        public static void SetAdditionalData(this IOffchainTransfer transfer, OffchainTransferAdditionalData model)
+        {
+            transfer.AdditionalDataJson = model.ToJson();
+        }
     }
 
     public interface IOffchainTransferRepository
@@ -44,5 +70,9 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Offchain
         Task UpdateTransfer(string transferId, string toString, bool closing = false, bool? onchain = null);
 
         Task<IEnumerable<IOffchainTransfer>> GetTransfersByDate(OffchainTransferType type, DateTimeOffset from, DateTimeOffset to);
+
+        Task AddChildTransfer(string transferId, IOffchainTransfer child);
+
+        Task SetTransferIsChild(string transferId, string parentId);
     }
 }
