@@ -344,6 +344,9 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
 
             var clientIdRecord = await _tableStorage.GetDataAsync(partitionKey, rowKey);
 
+            if (clientIdRecord == null)
+                return;
+
             var multisigPartitionKey = ClientTradeEntity.ByMultisig.GeneratePartitionKey(clientIdRecord.Multisig);
             var multisigRowKey = ClientTradeEntity.ByMultisig.GenerateRowKey(id);
 
