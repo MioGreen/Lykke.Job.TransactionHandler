@@ -69,6 +69,8 @@ using Lykke.MatchingEngine.Connector.Services;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.ExchangeOperations.Client;
 using Lykke.Service.ExchangeOperations.Contracts;
+using Lykke.Service.OperationsHistory.HistoryWriter.Abstractions;
+using Lykke.Service.OperationsHistory.HistoryWriter.Implementation;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Lykke.Job.TransactionHandler.Modules
@@ -202,6 +204,9 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.RegisterType<SrvEmailsFacade>().As<ISrvEmailsFacade>().SingleInstance();
 
             builder.RegisterType<BitcoinTransactionService>().As<IBitcoinTransactionService>().SingleInstance();
+
+            var historyWriter = new HistoryWriter(_dbSettings.HistoryLogsConnString, _log);
+            builder.RegisterInstance(historyWriter).As<IHistoryWriter>();
         }
 
         private void BindRepositories(ContainerBuilder builder)

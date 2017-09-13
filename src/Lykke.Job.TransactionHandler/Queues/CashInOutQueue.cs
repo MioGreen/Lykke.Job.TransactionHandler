@@ -17,6 +17,8 @@ using Lykke.RabbitMqBroker;
 using Lykke.RabbitMqBroker.Subscriber;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.Assets.Client.Models;
+using Lykke.Service.OperationsHistory.HistoryWriter.Abstractions;
+using Lykke.Service.OperationsHistory.HistoryWriter.Model;
 using Newtonsoft.Json;
 
 namespace Lykke.Job.TransactionHandler.Queues
@@ -39,6 +41,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IBcnClientCredentialsRepository _bcnClientCredentialsRepository;
         private readonly IEthClientEventLogs _ethClientEventLogs;
         private readonly IBitcoinTransactionService _bitcoinTransactionService;
+        private readonly IHistoryWriter _historyWriter;
 
         private readonly AppSettings.RabbitMqSettings _rabbitConfig;
         private RabbitMqSubscriber<CashInOutQueueMessage> _subscriber;
@@ -53,8 +56,11 @@ namespace Lykke.Job.TransactionHandler.Queues
             IOffchainRequestService offchainRequestService,
             IClientSettingsRepository clientSettingsRepository,
             IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
-            ISrvEthereumHelper srvEthereumHelper, IBcnClientCredentialsRepository bcnClientCredentialsRepository,
-            IEthClientEventLogs ethClientEventLogs, IBitcoinTransactionService bitcoinTransactionService)
+            ISrvEthereumHelper srvEthereumHelper, 
+            IBcnClientCredentialsRepository bcnClientCredentialsRepository,
+            IEthClientEventLogs ethClientEventLogs, 
+            IHistoryWriter historyWriter,
+			IBitcoinTransactionService bitcoinTransactionService)
         {
             _rabbitConfig = config;
             _log = log;
@@ -71,6 +77,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             _bcnClientCredentialsRepository = bcnClientCredentialsRepository;
             _ethClientEventLogs = ethClientEventLogs;
             _bitcoinTransactionService = bitcoinTransactionService;
+            _historyWriter = historyWriter;
         }
 
         public void Start()
@@ -130,8 +137,10 @@ namespace Lykke.Job.TransactionHandler.Queues
                         return await ProcessCashOut(transaction, queueMessage);
                     case BitCoinCommands.Destroy:
                         return await ProcessDestroy(transaction, queueMessage);
+                    case BitCoinCommands.ManualUpdate:
+                        return await ProcessManualOperation(transaction, queueMessage);
                     default:
-                        await _log.WriteWarningAsync(nameof(CashInOutQueue), nameof(ProcessMessage), queueMessage.ToJson(), "unkown command type");
+                        await _log.WriteWarningAsync(nameof(CashInOutQueue), nameof(ProcessMessage), queueMessage.ToJson(), $"Unknown command type (value = [{transaction.CommandType}])");
                         return false;
                 }
             }
@@ -181,6 +190,53 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             //Send to bitcoin
             await _bitcoinCommandSender.SendCommand(cmd);
+
+            return true;
+        }
+
+        private async Task<bool> ProcessManualOperation(IBitcoinTransaction transaction, CashInOutQueueMessage msg)
+        {
+            var asset = await _assetsService.TryGetAssetAsync(msg.AssetId);
+            var walletCredentials = await _walletCredentialsRepository.GetAsync(msg.ClientId);
+            var context = transaction.GetContextData<CashOutContextData>();
+            var isOffchainClient = await _clientSettingsRepository.IsOffchainClient(msg.ClientId);
+            var isBtcOffchainClient = isOffchainClient && asset.Blockchain == Blockchain.Bitcoin;
+
+            var operation = new CashInOutOperation
+            {
+                Id = Guid.NewGuid().ToString(),
+                ClientId = msg.ClientId,
+                Multisig = walletCredentials.MultiSig,
+                AssetId = msg.AssetId,
+                Amount = msg.Amount.ParseAnyDouble(),
+                DateTime = DateTime.UtcNow,
+                AddressFrom = walletCredentials.MultiSig,
+                AddressTo = context.Address,
+                TransactionId = msg.Id,
+                Type = CashOperationType.None,
+                BlockChainHash = asset.IssueAllowed && isBtcOffchainClient ? string.Empty : transaction.BlockchainHash,
+                State = GetState(transaction, isBtcOffchainClient)
+            };
+
+            var newHistoryEntry = new HistoryEntry
+            {
+                ClientId = operation.ClientId,
+                Amount = operation.Amount,
+                Currency = asset.Name,
+                DateTime = msg.Date,
+                OpType = "CashInOut",
+                CustomData = JsonConvert.SerializeObject(operation)
+            };
+
+            try
+            {
+                await _historyWriter.Push(newHistoryEntry);
+            }
+            catch (Exception e)
+            {
+                await _log.WriteErrorAsync(nameof(CashInOutQueue), nameof(ProcessManualOperation), null, e);
+                return false;
+            }
 
             return true;
         }
