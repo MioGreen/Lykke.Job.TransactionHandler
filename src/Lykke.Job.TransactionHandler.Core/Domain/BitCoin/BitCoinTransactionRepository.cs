@@ -14,6 +14,7 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.BitCoin
         public const string TransferAll = "TransferAll";
         public const string Issue = "Issue";
         public const string Refund = "Refund";
+        public const string ManualUpdate = "ManualUpdate";
     }
 
     public interface IBitcoinTransaction
@@ -31,6 +32,7 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.BitCoin
     public interface IBitCoinTransactionsRepository
     {
         Task CreateAsync(string transactionId, string commandType, string requestData, string contextData, string response, string blockchainHash = null);
+        Task CreateOrUpdateAsync(string transactionId, string commandType);
         Task<IBitcoinTransaction> FindByTransactionIdAsync(string transactionId);
         Task<IBitcoinTransaction> SaveResponseAndHashAsync(string transactionId, string resp, string hash, DateTime? dateTime = null);
         Task UpdateAsync(string transactionId, string requestData, string contextData, string response);

@@ -23,6 +23,8 @@ namespace Lykke.Job.TransactionHandler.Services.Notifications
         public string Alert { get; set; }
         [JsonProperty("type")]
         public NotificationType Type { get; set; }
+        [JsonProperty("sound")]
+        public string Sound { get; set; } = "default";
     }
 
     public class AndroidPayloadFields
@@ -136,7 +138,8 @@ namespace Lykke.Job.TransactionHandler.Services.Notifications
             {
                 Aps = new DataNotificationFields
                 {
-                    Type = type
+                    Type = type,
+                    Sound = null
                 }
             };
 

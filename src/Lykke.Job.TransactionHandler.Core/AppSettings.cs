@@ -39,6 +39,7 @@ namespace Lykke.Job.TransactionHandler.Core
             public string OffchainConnString { get; set; }
             public string QuantaSrvConnString { get; set; }
             public string SolarCoinConnString { get; set; }
+            public string HistoryLogsConnString { get; set; }
         }
 
         public class AssetsCacheSettings
@@ -114,6 +115,8 @@ namespace Lykke.Job.TransactionHandler.Core
 
         public class RabbitMqSettings
         {
+            public string ConnectionString { get; set; }
+
             public string ExternalHost { get; set; }
 
             public int Port { get; set; }

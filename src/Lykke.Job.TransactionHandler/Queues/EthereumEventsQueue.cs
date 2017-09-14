@@ -9,10 +9,11 @@ using Lykke.Job.TransactionHandler.Core.Domain.Clients;
 using Lykke.Job.TransactionHandler.Core.Domain.Ethereum;
 using Lykke.Job.TransactionHandler.Core.Domain.PaymentSystems;
 using Lykke.Job.TransactionHandler.Core.Services.Messages.Email;
-using Lykke.Job.TransactionHandler.Queues.Common;
 using Lykke.Job.TransactionHandler.Services.Ethereum;
 using Lykke.MatchingEngine.Connector.Abstractions.Models;
 using Lykke.MatchingEngine.Connector.Abstractions.Services;
+using Lykke.RabbitMqBroker;
+using Lykke.RabbitMqBroker.Subscriber;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.OperationsRepository.Client.Abstractions.CashOperations;
 using Newtonsoft.Json;
@@ -22,8 +23,10 @@ using TransactionStates = Lykke.Service.OperationsRepository.AutorestClient.Mode
 
 namespace Lykke.Job.TransactionHandler.Queues
 {
-    public class EthereumEventsQueue : RabbitQueue
+    public class EthereumEventsQueue : IQueueSubscriber
     {
+        private const string QueueName = "lykke.transactionhandler.ethereum.events";
+
         private readonly ILog _log;
         private readonly IMatchingEngineClient _matchingEngineClient;
         private readonly ICashOperationsRepositoryClient _cashOperationsRepositoryClient;
@@ -36,6 +39,9 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IEthereumTransactionRequestRepository _ethereumTransactionRequestRepository;
         private readonly ICachedAssetsService _assetsService;
 
+        private readonly AppSettings.RabbitMqSettings _rabbitConfig;
+        private RabbitMqSubscriber<CoinEvent> _subscriber;
+
         public EthereumEventsQueue(AppSettings.RabbitMqSettings config, ILog log,
             IMatchingEngineClient matchingEngineClient,
             ICashOperationsRepositoryClient cashOperationsRepositoryClient,
@@ -47,9 +53,6 @@ namespace Lykke.Job.TransactionHandler.Queues
             ITradeOperationsRepositoryClient clientTradesRepositoryClient,
             IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
             ICachedAssetsService assetsService)
-            : base(config.ExternalHost, config.Port,
-                  config.ExchangeEthereumCashIn, "lykke.transactionhandler.ethereum.events",
-                  config.Username, config.Password, log)
         {
             _log = log;
             _matchingEngineClient = matchingEngineClient;
@@ -62,13 +65,45 @@ namespace Lykke.Job.TransactionHandler.Queues
             _clientTradesRepositoryClient = clientTradesRepositoryClient;
             _ethereumTransactionRequestRepository = ethereumTransactionRequestRepository;
             _assetsService = assetsService;
+            _rabbitConfig = config;
         }
 
-        public override async Task<bool> ProcessMessage(string message)
+        public void Start()
         {
-            var queueMessage = JsonConvert
-                .DeserializeObject<CoinEvent>(message);
+            var settings = new RabbitMqSubscriptionSettings
+            {
+                ConnectionString = _rabbitConfig.ConnectionString,
+                QueueName = QueueName,
+                ExchangeName = _rabbitConfig.ExchangeEthereumCashIn,
+                DeadLetterExchangeName = $"{_rabbitConfig.ExchangeEthereumCashIn}.dlx",
+                RoutingKey = "",
+                IsDurable = true
+            };
 
+            try
+            {
+                _subscriber = new RabbitMqSubscriber<CoinEvent>(settings, new DeadQueueErrorHandlingStrategy(_log, settings))
+                    .SetMessageDeserializer(new JsonMessageDeserializer<CoinEvent>())
+                    .SetMessageReadStrategy(new MessageReadQueueStrategy())
+                    .Subscribe(ProcessMessage)
+                    .CreateDefaultBinding()
+                    .SetLogger(_log)
+                    .Start();
+            }
+            catch (Exception ex)
+            {
+                _log.WriteErrorAsync(nameof(EthereumEventsQueue), nameof(Start), null, ex).Wait();
+                throw;
+            }
+        }
+
+        public void Stop()
+        {
+            _subscriber?.Stop();
+        }
+
+        public async Task<bool> ProcessMessage(CoinEvent queueMessage)
+        {
             switch (queueMessage.CoinEventType)
             {
                 case CoinEventType.CashinCompleted:
@@ -125,7 +160,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             var asset = await _assetsService.TryGetAssetAsync(bcnCreds.AssetId);
             var amount = EthServiceHelpers.ConvertFromContract(queueMessage.Amount, asset.MultiplierPower, asset.Accuracy);
 
-            await HandleCashInOperation(asset, (double) amount, bcnCreds.ClientId, bcnCreds.Address,
+            await HandleCashInOperation(asset, (double)amount, bcnCreds.ClientId, bcnCreds.Address,
                 queueMessage.TransactionHash);
 
             return true;
@@ -176,6 +211,11 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                 await _paymentTransactionsRepository.SetStatus(hash, PaymentStatus.NotifyProcessed);
             }
+        }
+
+        public void Dispose()
+        {
+            Stop();
         }
     }
 

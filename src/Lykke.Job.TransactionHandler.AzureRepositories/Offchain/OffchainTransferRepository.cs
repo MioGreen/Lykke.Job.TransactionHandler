@@ -2,8 +2,10 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using AzureStorage;
+using Common;
 using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
 using Microsoft.WindowsAzure.Storage.Table;
+using Newtonsoft.Json;
 
 namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
 {
@@ -20,6 +22,9 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
         public OffchainTransferType Type { get; set; }
         public bool ChannelClosing { get; set; }
         public bool Onchain { get; set; }
+        public bool IsChild { get; set; }
+        public string ParentTransferId { get; set; }
+        public string AdditionalDataJson { get; set; }
 
         public class ByCommon
         {
@@ -116,6 +121,33 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
                 TableQuery.CombineFilters(filter1, TableOperators.And, filter2));
 
             return await _storage.WhereAsync(query);
+        }
+
+        public async Task AddChildTransfer(string transferId, IOffchainTransfer child)
+        {
+            await _storage.MergeAsync(OffchainTransferEntity.ByCommon.GeneratePartitionKey(), transferId,
+                entity =>
+                {
+                    var data = entity.GetAdditionalData();
+                    data.ChildTransfers.Add(child.Id);
+                    entity.SetAdditionalData(data);
+
+                    entity.Amount += child.Amount;
+
+                    return entity;
+                });
+        }
+
+        public async Task SetTransferIsChild(string transferId, string parentId)
+        {
+            await _storage.MergeAsync(OffchainTransferEntity.ByCommon.GeneratePartitionKey(), transferId,
+                entity =>
+                {
+                    entity.IsChild = true;
+                    entity.ParentTransferId = parentId;
+
+                    return entity;
+                });
         }
     }
 
