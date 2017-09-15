@@ -311,10 +311,11 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             var type = order.Volume > 0 ? OrderType.Buy : OrderType.Sell;
             var assetPair = await _assetsService.TryGetAssetPairAsync(order.AssetPairId);
+            var neededAsset = type == OrderType.Buy ? assetPair.QuotingAssetId : assetPair.BaseAssetId;
+            var asset = await _assetsService.TryGetAssetAsync(neededAsset);
 
             if (type == OrderType.Buy)
             {
-                var neededAsset = assetPair.QuotingAssetId;
                 var initial = offchainOrder.ReservedVolume;
 
                 var trades = await _clientTradesRepository.GetByOrderAsync(order.Id);
@@ -323,15 +324,29 @@ namespace Lykke.Job.TransactionHandler.Queues
                     .Select(x => x.Amount).DefaultIfEmpty(0).Sum();
 
                 var returnAmount = Math.Max(0, initial - Math.Abs((decimal)executed));
+                
+                if (asset.Blockchain == Blockchain.Ethereum)
+                {
+                    await ProcessEthGuaranteeTransfer(order.Id, returnAmount);
+                    return;
+                }
 
                 if (returnAmount > 0)
-                    await _offchainRequestService.CreateOffchainRequestAndUnlock(Guid.NewGuid().ToString(), order.ClientId,
+                {
+                    await _offchainRequestService.CreateOffchainRequestAndUnlock(Guid.NewGuid().ToString(),
+                        order.ClientId,
                         neededAsset, returnAmount, order.Id, OffchainTransferType.FromHub);
+                }
             }
             else
             {
-                var neededAsset = assetPair.BaseAssetId;
                 var remainigVolume = Math.Abs((decimal)order.RemainingVolume);
+
+                if (asset.Blockchain == Blockchain.Ethereum)
+                {
+                    await ProcessEthGuaranteeTransfer(order.Id, remainigVolume);
+                    return;
+                }
 
                 if (remainigVolume > 0)
                 {
@@ -422,16 +437,15 @@ namespace Lykke.Job.TransactionHandler.Queues
             }
         }
 
-        private async Task<bool> ProcessEthGuaranteeTransfer(IEthereumTransactionRequest ethereumTxRequest, List<AggregatedTransfer> operations, IClientTrade[] clientTrades)
+        private async Task<bool> ProcessEthGuaranteeTransfer(string orderId, decimal change)
         {
+            var ethereumTxRequest = await _ethereumTransactionRequestRepository.GetByOrderAsync(orderId);
+
             string errMsg = string.Empty;
             IAsset asset = await _assetsService.TryGetAssetAsync(ethereumTxRequest.AssetId);
             try
             {
-                var fromAddress = await _bcnClientCredentialsRepository.GetClientAddress(ethereumTxRequest.ClientId);
-                var clientEthSellOperation =
-                    operations.First(x => x.Amount < 0 && x.ClientId == ethereumTxRequest.ClientId);
-                var change = ethereumTxRequest.Volume - Math.Abs(clientEthSellOperation.Amount);
+                var fromAddress = await _bcnClientCredentialsRepository.GetAsync(ethereumTxRequest.ClientId, asset.Id);
 
                 EthereumResponse<OperationResponse> res;
                 var minAmountForAsset = (decimal)Math.Pow(10, -asset.Accuracy);
@@ -439,12 +453,12 @@ namespace Lykke.Job.TransactionHandler.Queues
                 {
                     res = await _srvEthereumHelper.SendTransferWithChangeAsync(change,
                         ethereumTxRequest.SignedTransfer.Sign, ethereumTxRequest.SignedTransfer.Id,
-                        asset, fromAddress, _settings.HotwalletAddress, ethereumTxRequest.Volume);
+                        asset, fromAddress.Address, _settings.HotwalletAddress, ethereumTxRequest.Volume);
                 }
                 else
                 {
                     res = await _srvEthereumHelper.SendTransferAsync(ethereumTxRequest.SignedTransfer.Id, ethereumTxRequest.SignedTransfer.Sign,
-                        asset, fromAddress, _settings.HotwalletAddress, ethereumTxRequest.Volume);
+                        asset, fromAddress.Address, _settings.HotwalletAddress, ethereumTxRequest.Volume);
                 }
 
                 if (res.HasError)
@@ -453,8 +467,10 @@ namespace Lykke.Job.TransactionHandler.Queues
                     await _log.WriteWarningAsync(nameof(TradeQueue), nameof(ProcessEthGuaranteeTransfer), errMsg, string.Empty);
                 }
 
+
+                var trades = await _clientTradesRepository.GetByOrderAsync(orderId);
                 ethereumTxRequest.OperationIds =
-                    clientTrades.Where(x => x.ClientId == ethereumTxRequest.ClientId && x.Amount < 0)
+                    trades.Where(x => x.ClientId == ethereumTxRequest.ClientId && x.Amount < 0 && x.AssetId == asset.Id)
                         .Select(x => x.Id)
                         .ToArray();
                 await _ethereumTransactionRequestRepository.UpdateAsync(ethereumTxRequest);
@@ -471,7 +487,6 @@ namespace Lykke.Job.TransactionHandler.Queues
                 await _ethClientEventLogs.WriteEvent(ethereumTxRequest.ClientId, Event.Error, new
                 {
                     Info = $"Guarantee transfer of {asset.Id} failed",
-                    Operations = operations.ToJson(),
                     RequestId = ethereumTxRequest.Id,
                     Error = errMsg
                 }.ToJson());
