@@ -334,10 +334,12 @@ namespace Lykke.Job.TransactionHandler.Queues
                     .Select(x => x.Amount ?? 0).DefaultIfEmpty(0).Sum();
 
                 var returnAmount = Math.Max(0, initial - Math.Abs((decimal)executed));
-                
+
                 if (asset.Blockchain == Blockchain.Ethereum)
                 {
-                    await ProcessEthGuaranteeTransfer(order.Id, returnAmount);
+                    // if order partially or fully executed then broadcast guarantee transfer
+                    if (offchainOrder.Volume > returnAmount)
+                        await ProcessEthGuaranteeTransfer(order.Id, returnAmount);
                     return;
                 }
 
@@ -354,7 +356,9 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                 if (asset.Blockchain == Blockchain.Ethereum)
                 {
-                    await ProcessEthGuaranteeTransfer(order.Id, remainigVolume);
+                    // if order partially or fully executed then broadcast guarantee transfer
+                    if (offchainOrder.Volume > remainigVolume)
+                        await ProcessEthGuaranteeTransfer(order.Id, remainigVolume);
                     return;
                 }
 
