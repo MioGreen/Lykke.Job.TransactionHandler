@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using Common;
 using Common.Log;
+using Lykke.Job.TransactionHandler.Core;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.Blockchain;
 using Lykke.Job.TransactionHandler.Core.Domain.CashOperations;
@@ -220,19 +221,9 @@ namespace Lykke.Job.TransactionHandler.Queues
                 State = GetState(transaction, isBtcOffchainClient)
             };
 
-            var newHistoryEntry = new HistoryEntry
-            {
-                ClientId = operation.ClientId,
-                Amount = operation.Amount ?? default(double),
-                Currency = asset.Name,
-                DateTime = msg.Date,
-                OpType = "CashInOut",
-                CustomData = JsonConvert.SerializeObject(operation)
-            };
-
             try
             {
-                await _historyWriter.Push(newHistoryEntry);
+                await _cashOperationsRepositoryClient.RegisterAsync(operation);
             }
             catch (Exception e)
             {
