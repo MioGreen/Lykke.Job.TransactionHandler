@@ -488,7 +488,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 }
 
 
-                var trades = await _clientTradesRepository.GetByOrderAsync(orderId);
+                var trades = await _tradeOperationsRepositoryClient.GetByOrderAsync(orderId);
                 ethereumTxRequest.OperationIds =
                     trades.Where(x => x.ClientId == ethereumTxRequest.ClientId && x.Amount < 0 && x.AssetId == asset.Id)
                         .Select(x => x.Id)
