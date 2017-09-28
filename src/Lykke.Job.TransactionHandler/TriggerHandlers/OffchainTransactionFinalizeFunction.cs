@@ -24,6 +24,7 @@ using Lykke.Job.TransactionHandler.Resources;
 using Lykke.Job.TransactionHandler.Services.Notifications;
 using Lykke.JobTriggers.Triggers.Attributes;
 using Lykke.Service.Assets.Client.Custom;
+using Lykke.Service.ExchangeOperations.Client;
 using Lykke.Service.ExchangeOperations.Contracts;
 using Lykke.Service.OperationsRepository.Client.Abstractions.CashOperations;
 using Lykke.Service.PersonalData.Contract;
@@ -55,7 +56,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
 
 
         private readonly ISrvEmailsFacade _srvEmailsFacade;
-        private readonly IExchangeOperationsService _exchangeOperationsService;
+        private readonly IExchangeOperationsServiceClient _exchangeOperationsService;
         private readonly SrvSlackNotifications _srvSlackNotifications;
         private readonly ILog _log;
 
@@ -67,7 +68,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             IBitCoinTransactionsRepository bitCoinTransactionsRepository,
             ILog log,
             ICashOperationsRepositoryClient cashOperationsRepositoryClient,
-            IExchangeOperationsService exchangeOperationsService,
+            IExchangeOperationsServiceClient exchangeOperationsService,
             SrvSlackNotifications srvSlackNotifications,
             ICashOutAttemptOperationsRepositoryClient cashOutAttemptRepositoryClient,
             ISrvEmailsFacade srvEmailsFacade,
