@@ -12,6 +12,7 @@ using Lykke.Job.TransactionHandler.Core.Services.Offchain;
 using Lykke.Job.TransactionHandler.Queues.Models;
 using Lykke.Service.OperationsRepository.Client.Abstractions.CashOperations;
 using TransferEventClient = Lykke.Service.OperationsRepository.AutorestClient.Models.TransferEvent;
+using Newtonsoft.Json;
 using Lykke.Job.TransactionHandler.Services;
 using Lykke.RabbitMqBroker;
 using Lykke.RabbitMqBroker.Subscriber;

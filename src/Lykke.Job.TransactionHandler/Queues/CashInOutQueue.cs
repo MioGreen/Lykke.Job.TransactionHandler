@@ -221,6 +221,16 @@ namespace Lykke.Job.TransactionHandler.Queues
                 State = GetState(transaction, isBtcOffchainClient)
             };
 
+            var newHistoryEntry = new HistoryEntry
+            {
+                ClientId = operation.ClientId,
+                Amount = operation.Amount ?? default(double),
+                Currency = asset.Name,
+                DateTime = msg.Date,
+                OpType = "CashInOut",
+                CustomData = JsonConvert.SerializeObject(operation)
+            };
+
             try
             {
                 await _cashOperationsRepositoryClient.RegisterAsync(operation);
