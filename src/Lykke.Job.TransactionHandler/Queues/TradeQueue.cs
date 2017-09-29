@@ -74,6 +74,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             AppSettings.EthereumSettings settings,
             IEthClientEventLogs ethClientEventLogs,
 			IBitcoinTransactionService bitcoinTransactionService,
+            IClientAccountsRepository clientAccountsRepository,
             IMapper mapper)
         {
             _rabbitConfig = config;
@@ -93,6 +94,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             _bitcoinTransactionService = bitcoinTransactionService;
             _log = log;
             _mapper = mapper;
+            _clientAccountsRepository = clientAccountsRepository;
         }
 
         public void Start()
