@@ -68,7 +68,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             ICachedAssetsService assetsService,
             IBcnClientCredentialsRepository bcnClientCredentialsRepository,
             AppSettings.EthereumSettings settings,
-            IEthClientEventLogs ethClientEventLogs, IBitcoinTransactionService bitcoinTransactionService)
+            IEthClientEventLogs ethClientEventLogs, IBitcoinTransactionService bitcoinTransactionService, IClientAccountsRepository clientAccountsRepository)
         {
             _rabbitConfig = config;
             _bitcoinCommandSender = bitcoinCommandSender;
@@ -85,6 +85,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             _settings = settings;
             _ethClientEventLogs = ethClientEventLogs;
             _bitcoinTransactionService = bitcoinTransactionService;
+            _clientAccountsRepository = clientAccountsRepository;
             _log = log;
         }
 
