@@ -44,8 +44,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             IWalletCredentialsRepository walletCredentialsRepository,
             IBitCoinTransactionsRepository bitCoinTransactionsRepository, 
             IOffchainRequestService offchainRequestService,
-            IClientSettingsRepository clientSettingsRepository, 
-            IOffchainIgnoreRepository offchainIgnoreRepository,
+            IClientSettingsRepository clientSettingsRepository,
             IBitcoinTransactionService bitcoinTransactionService,
             IClientAccountsRepository clientAccountsRepository,
             IMapper mapper)
