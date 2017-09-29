@@ -52,7 +52,6 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IEthClientEventLogs _ethClientEventLogs;
         private readonly ILog _log;
         private readonly ICachedAssetsService _assetsService;
-        private readonly CachedDataDictionary<string, IOffchainIgnore> _offchainIgnoreDictionary;
         private readonly ILimitOrdersRepository _limitOrdersRepository;
         private readonly ITradeOperationsRepositoryClient _tradeOperationsRepositoryClient;
         private readonly ILimitTradeEventsRepository _limitTradeEventsRepository;
@@ -73,8 +72,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             ICachedAssetsService assetsService,
             IBcnClientCredentialsRepository bcnClientCredentialsRepository,
             AppSettings.EthereumSettings settings,
-            IEthClientEventLogs ethClientEventLogs,
-            CachedDataDictionary<string, IOffchainIgnore> offchainIgnoreDictionary,
+            IEthClientEventLogs ethClientEventLogs,            
             ILimitOrdersRepository limitOrdersRepository,
             ITradeOperationsRepositoryClient tradeOperationsRepositoryClient,
             ILimitTradeEventsRepository limitTradeEventsRepository, IClientSettingsRepository clientSettingsRepository,
@@ -91,7 +89,6 @@ namespace Lykke.Job.TransactionHandler.Queues
             _settings = settings;
             _ethClientEventLogs = ethClientEventLogs;
             _log = log;
-            _offchainIgnoreDictionary = offchainIgnoreDictionary;
             _limitOrdersRepository = limitOrdersRepository;
             _tradeOperationsRepositoryClient = tradeOperationsRepositoryClient;
             _limitTradeEventsRepository = limitTradeEventsRepository;
@@ -140,11 +137,17 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         public async Task<bool> ProcessMessage(LimitQueueItem tradeItem)
         {
+            var trusted = new Dictionary<string, bool>();
             foreach (var limitOrderWithTrades in tradeItem.Orders)
             {
                 try
                 {
                     var meOrder = limitOrderWithTrades.Order;
+
+                    if (!trusted.ContainsKey(meOrder.ClientId))
+                        trusted[meOrder.ClientId] = await _clientAccountsRepository.IsTrusted(meOrder.ClientId);
+
+                    var isTrusted = trusted[meOrder.ClientId];
 
                     var prevOrderState = await _limitOrdersRepository.GetOrderAsync(meOrder.Id);
 
@@ -156,6 +159,14 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                     var aggregated = AggregateSwaps(limitOrderWithTrades.Trades);
 
+                    IClientTrade[] trades = null;
+                    if (status == OrderStatus.Processing || status == OrderStatus.Matched)
+                        trades = await ProcessTrades(aggregated, limitOrderWithTrades);
+
+                    // all code below is for untrusted users
+                    if (isTrusted)
+                        continue;
+
                     switch (status)
                     {
                         case OrderStatus.InOrderBook:
@@ -166,7 +177,6 @@ namespace Lykke.Job.TransactionHandler.Queues
                         case OrderStatus.Matched:
                             if (prevOrderState == null)
                                 await CreateEvent(limitOrderWithTrades, OrderStatus.InOrderBook);
-                            var trades = await ProcessTrades(aggregated, limitOrderWithTrades);
                             await SendMoney(trades, aggregated, meOrder, status);
                             break;
                         case OrderStatus.Dust:
@@ -232,9 +242,6 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         private async Task SendMoney(IClientTrade[] clientTrades, IEnumerable<AggregatedTransfer> aggregatedTransfers, ILimitOrder order, OrderStatus status)
         {
-            if (await IsClientTrusted(order.ClientId))
-                return;
-
             var clientId = order.ClientId;
 
             var executed = aggregatedTransfers.FirstOrDefault(x => x.ClientId == clientId && x.Amount > 0);
@@ -254,9 +261,6 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         private async Task SendPush(IEnumerable<AggregatedTransfer> aggregatedTransfers, ILimitOrder order, ILimitOrder prevOrderState, OrderStatus status)
         {
-            if (await IsClientTrusted(order.ClientId))
-                return;
-
             var clientId = order.ClientId;
             var type = order.Volume > 0 ? OrderType.Buy : OrderType.Sell;
             var typeString = type.ToString().ToLower();
@@ -313,9 +317,6 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         private async Task ReturnRemainingVolume(LimitQueueItem.LimitOrderWithTrades limitOrderWithTrades)
         {
-            if (await IsClientTrusted(limitOrderWithTrades.Order.ClientId))
-                return;
-
             var order = limitOrderWithTrades.Order;
             var offchainOrder = await _offchainOrdersRepository.GetOrder(order.Id);
 
@@ -372,9 +373,6 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         private async Task CreateEvent(LimitQueueItem.LimitOrderWithTrades limitOrderWithTrades, OrderStatus status)
         {
-            if (await IsClientTrusted(limitOrderWithTrades.Order.ClientId))
-                return;
-
             var order = limitOrderWithTrades.Order;
             var type = order.Volume > 0 ? OrderType.Buy : OrderType.Sell;
             var assetPair = await _assetsService.TryGetAssetPairAsync(order.AssetPairId);
@@ -385,17 +383,9 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         private async Task UpdateCache(IOrderBase meOrder)
         {
-            if (await IsClientTrusted(meOrder.ClientId))
-                return;
-
             var count = (await _limitOrdersRepository.GetActiveOrdersAsync(meOrder.ClientId)).Count();
 
             await _clientCacheRepository.UpdateLimitOrdersCount(meOrder.ClientId, count);
-        }
-
-        private async Task<bool> IsClientTrusted(string clientId)
-        {
-            return await _offchainIgnoreDictionary.GetItemAsync(clientId) != null;
         }
 
         private async Task ProcessEthBuy(AggregatedTransfer operation, IAsset asset, IClientTrade[] clientTrades, string orderId)

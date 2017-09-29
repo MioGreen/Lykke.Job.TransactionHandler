@@ -8,6 +8,7 @@ using Common.Log;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.Blockchain;
 using Lykke.Job.TransactionHandler.Core.Domain.CashOperations;
+using Lykke.Job.TransactionHandler.Core.Domain.Clients;
 using Lykke.Job.TransactionHandler.Core.Domain.Ethereum;
 using Lykke.Job.TransactionHandler.Core.Domain.Exchange;
 using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
@@ -42,7 +43,6 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly ITradeOperationsRepositoryClient _clientTradesRepositoryClient;
         private readonly IOffchainRequestService _offchainRequestService;
         private readonly IOffchainOrdersRepository _offchainOrdersRepository;
-        private readonly IOffchainIgnoreRepository _offchainIgnoreRepository;
         private readonly IEthereumTransactionRequestRepository _ethereumTransactionRequestRepository;
         private readonly ISrvEthereumHelper _srvEthereumHelper;
         private readonly IBcnClientCredentialsRepository _bcnClientCredentialsRepository;
@@ -52,6 +52,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly ICachedAssetsService _assetsService;
         private readonly IMapper _mapper;
         private readonly IBitcoinTransactionService _bitcoinTransactionService;
+        private readonly IClientAccountsRepository _clientAccountsRepository;
 
         private readonly AppSettings.RabbitMqSettings _rabbitConfig;
         private RabbitMqSubscriber<TradeQueueItem> _subscriber;
@@ -66,7 +67,6 @@ namespace Lykke.Job.TransactionHandler.Queues
             ITradeOperationsRepositoryClient clientTradesRepositoryClient, 
             IOffchainRequestService offchainRequestService,
             IOffchainOrdersRepository offchainOrdersRepository,
-            IOffchainIgnoreRepository offchainIgnoreRepository,
             IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
             ISrvEthereumHelper srvEthereumHelper,
             ICachedAssetsService assetsService,
@@ -84,7 +84,6 @@ namespace Lykke.Job.TransactionHandler.Queues
             _clientTradesRepositoryClient = clientTradesRepositoryClient;
             _offchainRequestService = offchainRequestService;
             _offchainOrdersRepository = offchainOrdersRepository;
-            _offchainIgnoreRepository = offchainIgnoreRepository;
             _ethereumTransactionRequestRepository = ethereumTransactionRequestRepository;
             _srvEthereumHelper = srvEthereumHelper;
             _assetsService = assetsService;
@@ -218,6 +217,8 @@ namespace Lykke.Job.TransactionHandler.Queues
             var notify = new HashSet<string>();
             try
             {
+                var trusted = new Dictionary<string, bool>();
+
                 if (ethereumTxRequest != null)
                 {
                     var wasTransferOk = await ProcessEthGuaranteeTransfer(ethereumTxRequest, operations, clientTrades);
@@ -231,11 +232,11 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                 foreach (var operation in sellOperations)
                 {
-                    if (await _offchainIgnoreRepository.IsIgnored(operation.ClientId))
-                    {
-                        await _log.WriteInfoAsync(nameof(TradeQueue), nameof(ProcessOffchainMessage), $"Order: [{offchainOrder.OrderId}], data: [{operation.ToJson()}]", "Transfer ignored");
+                    if (!trusted.ContainsKey(operation.ClientId))
+                        trusted[operation.ClientId] = await _clientAccountsRepository.IsTrusted(operation.ClientId);
+
+                    if (trusted[operation.ClientId])
                         continue;
-                    }
 
                     var asset = await _assetsService.TryGetAssetAsync(operation.AssetId);
                     if (asset.Blockchain == Blockchain.Ethereum)
@@ -259,11 +260,11 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                 foreach (var operation in buyOperations)
                 {
-                    if (await _offchainIgnoreRepository.IsIgnored(operation.ClientId))
-                    {
-                        await _log.WriteInfoAsync(nameof(TradeQueue), nameof(ProcessOffchainMessage), $"Order: [{offchainOrder.OrderId}], data: [{operation.ToJson()}]", "Transfer ignored");
+                    if (!trusted.ContainsKey(operation.ClientId))
+                        trusted[operation.ClientId] = await _clientAccountsRepository.IsTrusted(operation.ClientId);
+
+                    if (trusted[operation.ClientId])
                         continue;
-                    }
 
                     var asset = await _assetsService.TryGetAssetAsync(operation.AssetId);
                     if (asset.Blockchain == Blockchain.Ethereum)

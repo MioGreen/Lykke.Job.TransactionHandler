@@ -5,6 +5,7 @@ using Common;
 using Common.Log;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.CashOperations;
+using Lykke.Job.TransactionHandler.Core.Domain.Clients;
 using Lykke.Job.TransactionHandler.Core.Domain.Clients.Core.Clients;
 using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
 using Lykke.Job.TransactionHandler.Core.Services.BitCoin;
@@ -30,9 +31,9 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly ITransferOperationsRepositoryClient _transferEventsRepositoryClient;
         private readonly IOffchainRequestService _offchainRequestService;
         private readonly IClientSettingsRepository _clientSettingsRepository;
-        private readonly IOffchainIgnoreRepository _offchainIgnoreRepository;
         private readonly IMapper _mapper;
         private readonly IBitcoinTransactionService _bitcoinTransactionService;
+        private readonly IClientAccountsRepository _clientAccountsRepository;
 
         private readonly AppSettings.RabbitMqSettings _rabbitConfig;
         private RabbitMqSubscriber<TransferQueueMessage> _subscriber;
@@ -45,7 +46,8 @@ namespace Lykke.Job.TransactionHandler.Queues
             IOffchainRequestService offchainRequestService,
             IClientSettingsRepository clientSettingsRepository, 
             IOffchainIgnoreRepository offchainIgnoreRepository,
-			IBitcoinTransactionService bitcoinTransactionService,
+            IBitcoinTransactionService bitcoinTransactionService,
+            IClientAccountsRepository clientAccountsRepository,
             IMapper mapper)
         {
             _rabbitConfig = config;
@@ -56,9 +58,9 @@ namespace Lykke.Job.TransactionHandler.Queues
             _bitCoinTransactionsRepository = bitCoinTransactionsRepository;
             _offchainRequestService = offchainRequestService;
             _clientSettingsRepository = clientSettingsRepository;
-            _offchainIgnoreRepository = offchainIgnoreRepository;
             _mapper = mapper;
             _bitcoinTransactionService = bitcoinTransactionService;
+            _clientAccountsRepository = clientAccountsRepository;
         }
 
         public void Start()
@@ -161,7 +163,7 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             if (await _clientSettingsRepository.IsOffchainClient(queueMessage.ToClientid))
             {
-                if (!await _offchainIgnoreRepository.IsIgnored(queueMessage.ToClientid))
+                if (!await _clientAccountsRepository.IsTrusted(queueMessage.ToClientid))
                 {
                     try
                     {
