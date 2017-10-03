@@ -6,6 +6,8 @@ using Lykke.Job.TransactionHandler.Core.Domain.Clients.Core.Clients;
 using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
 using Lykke.Job.TransactionHandler.Core.Services.AppNotifications;
 using Lykke.Job.TransactionHandler.Core.Services.Offchain;
+using Lykke.Service.PendingActions.AutorestClient.Models;
+using Lykke.Service.PendingActions.Client;
 
 namespace Lykke.Job.TransactionHandler.Services.Offchain
 {
@@ -16,14 +18,19 @@ namespace Lykke.Job.TransactionHandler.Services.Offchain
         private readonly IClientSettingsRepository _clientSettingsRepository;
         private readonly IClientAccountsRepository _clientAccountsRepository;
         private readonly IAppNotifications _appNotifications;
+        private readonly IPendingActionsClient _pendingActionsClient;
 
-        public OffchainRequestService(IOffchainRequestRepository offchainRequestRepository, IOffchainTransferRepository offchainTransferRepository, IClientSettingsRepository clientSettingsRepository, IClientAccountsRepository clientAccountsRepository, IAppNotifications appNotifications)
+        public OffchainRequestService(IOffchainRequestRepository offchainRequestRepository,
+            IOffchainTransferRepository offchainTransferRepository, IClientSettingsRepository clientSettingsRepository,
+            IClientAccountsRepository clientAccountsRepository, IAppNotifications appNotifications,
+            IPendingActionsClient pendingActionsClient)
         {
             _offchainRequestRepository = offchainRequestRepository;
             _offchainTransferRepository = offchainTransferRepository;
             _clientSettingsRepository = clientSettingsRepository;
             _clientAccountsRepository = clientAccountsRepository;
             _appNotifications = appNotifications;
+            _pendingActionsClient = pendingActionsClient;
         }
 
         public async Task CreateOffchainRequest(string transactionId, string clientId, string assetId, decimal amount, string orderId, OffchainTransferType type)
@@ -31,6 +38,8 @@ namespace Lykke.Job.TransactionHandler.Services.Offchain
             await _offchainTransferRepository.CreateTransfer(transactionId, clientId, assetId, amount, type, null, orderId);
 
             await _offchainRequestRepository.CreateRequest(transactionId, clientId, assetId, RequestType.RequestTransfer, type, null);
+
+            await _pendingActionsClient.SetPendingAsync(clientId, PendingActionType.OffchainRequest, true);
         }
 
         public async Task NotifyUser(string clientId)
@@ -70,6 +79,8 @@ namespace Lykke.Job.TransactionHandler.Services.Offchain
             var newTransfer = await _offchainTransferRepository.CreateTransfer(transactionId, clientId, assetId, amount, type, null, orderId);
 
             var request = await _offchainRequestRepository.CreateRequestAndLock(transactionId, clientId, assetId, RequestType.RequestTransfer, type, lockTime);
+
+            await _pendingActionsClient.SetPendingAsync(clientId, PendingActionType.OffchainRequest, true);
 
             var oldTransferId = request.TransferId;
 
