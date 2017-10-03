@@ -32,7 +32,7 @@
     <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="2.0.1" />
     <PackageReference Include="Lykke.Common" Version="1.1.100" />
 
-    <PackageReference Include="Lykke.Logs" Version="1.0.33" />
+    <PackageReference Include="Lykke.Logs" Version="3.1.2" />
     <PackageReference Include="Lykke.RabbitMqBroker" Version="1.0.78" />
     <PackageReference Include="Lykke.Service.ExchangeOperations.Contracts" Version="1.0.6" />
     <PackageReference Include="Lykke.SlackNotification.AzureQueue" Version="1.0.4" />
