@@ -25,6 +25,7 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
         public bool IsChild { get; set; }
         public string ParentTransferId { get; set; }
         public string AdditionalDataJson { get; set; }
+        public string BlockchainHash { get; set; }
 
         public class ByCommon
         {

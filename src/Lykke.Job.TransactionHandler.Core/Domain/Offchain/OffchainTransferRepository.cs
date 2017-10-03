@@ -35,7 +35,8 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Offchain
         bool Onchain { get; }
         bool IsChild { get; }
         string ParentTransferId { get; }
-        string AdditionalDataJson { get; set; }   
+        string AdditionalDataJson { get; set; }
+        string BlockchainHash { get; set; }
     }
     
     public class OffchainTransferAdditionalData
