@@ -17,6 +17,7 @@ namespace Lykke.Job.TransactionHandler.Services
         public MatchingEngineSettings MatchingEngineClient { get; set; }
         public NotificationsSettings AppNotifications { get; set; }
         public RabbitMqSettings RabbitMq { get; set; }
+        public PendingActionsSettings PendingActionsClient { get; set; }
         public OperationsRepositoryClientSettings OperationsRepositoryClient { get; set; }
 
         public class TransactionHandlerSettings
@@ -148,6 +149,11 @@ namespace Lykke.Job.TransactionHandler.Services
         }
 
         public class AssetsSettings
+        {
+            public string ServiceUrl { get; set; }
+        }
+
+        public class PendingActionsSettings
         {
             public string ServiceUrl { get; set; }
         }

@@ -64,14 +64,12 @@ namespace Lykke.Job.TransactionHandler
             services.AddAutoMapper();
 
             var builder = new ContainerBuilder();
-            var appSettings = Environment.IsDevelopment()
-                ? Configuration.Get<AppSettings>()
-                : HttpSettingsLoader.Load<AppSettings>(Configuration.GetValue<string>("SettingsUrl"));
+            var appSettings = Configuration.LoadSettings<AppSettings>();
             var log = CreateLogWithSlack(services, appSettings);
 
             builder.RegisterModule(new JobModule(appSettings, log));
 
-            if (string.IsNullOrWhiteSpace(appSettings.TransactionHandlerJob.Db.BitCoinQueueConnectionString))
+            if (string.IsNullOrWhiteSpace(appSettings.CurrentValue.TransactionHandlerJob.Db.BitCoinQueueConnectionString))
             {
                 builder.AddTriggers();
             }
@@ -79,7 +77,7 @@ namespace Lykke.Job.TransactionHandler
             {
                 builder.AddTriggers(pool =>
                 {
-                    pool.AddDefaultConnection(appSettings.TransactionHandlerJob.Db.BitCoinQueueConnectionString);
+                    pool.AddDefaultConnection(appSettings.CurrentValue.TransactionHandlerJob.Db.BitCoinQueueConnectionString);
                 });
             }
 
@@ -112,7 +110,7 @@ namespace Lykke.Job.TransactionHandler
             });
         }
 
-        private static ILog CreateLogWithSlack(IServiceCollection services, AppSettings settings)
+        private static ILog CreateLogWithSlack(IServiceCollection services, IReloadingManager<AppSettings> settings)
         {
             var logToConsole = new LogToConsole();
             var aggregateLogger = new AggregateLogger();
@@ -121,11 +119,11 @@ namespace Lykke.Job.TransactionHandler
 
             var slackService = services.UseSlackNotificationsSenderViaAzureQueue(new AzureQueueIntegration.AzureQueueSettings
             {
-                ConnectionString = settings.SlackNotifications.AzureQueue.ConnectionString,
-                QueueName = settings.SlackNotifications.AzureQueue.QueueName
+                ConnectionString = settings.CurrentValue.SlackNotifications.AzureQueue.ConnectionString,
+                QueueName = settings.CurrentValue.SlackNotifications.AzureQueue.QueueName
             }, aggregateLogger);
 
-            var dbLogConnectionString = settings.TransactionHandlerJob.Db.LogsConnString;
+            var dbLogConnectionString = settings.CurrentValue.TransactionHandlerJob.Db.LogsConnString;
 
             // Creating azure storage logger, which logs own messages to concole log
             if (!string.IsNullOrEmpty(dbLogConnectionString) && !(dbLogConnectionString.StartsWith("${") && dbLogConnectionString.EndsWith("}")))
@@ -134,7 +132,9 @@ namespace Lykke.Job.TransactionHandler
 
                 var persistenceManager = new LykkeLogToAzureStoragePersistenceManager(
                     appName,
-                    AzureTableStorage<LogEntity>.Create(() => dbLogConnectionString, "TransactionHandlerLog", logToConsole),
+                    AzureTableStorage<LogEntity>.Create(
+                        settings.ConnectionString(x => x.TransactionHandlerJob.Db.LogsConnString),
+                        "TransactionHandlerLog", logToConsole),
                     logToConsole);
 
                 var slackNotificationsManager = new LykkeLogToAzureSlackNotificationsManager(appName, slackService, logToConsole);
