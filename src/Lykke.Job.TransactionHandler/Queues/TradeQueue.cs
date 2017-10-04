@@ -326,11 +326,20 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         private async Task CreateTransaction(string orderId, List<AggregatedTransfer> operations, IClientTrade[] trades)
         {
-            var contextData = new SwapOffchainContextData();
+            var contextData = await _bitcoinTransactionService.GetTransactionContext<SwapOffchainContextData>(orderId) ?? new SwapOffchainContextData();
 
             foreach (var operation in operations)
             {
                 var trade = trades.FirstOrDefault(x => x.ClientId == operation.ClientId && x.AssetId == operation.AssetId && Math.Abs(x.Amount - (double)operation.Amount) < 0.00000001);
+
+                // find existed operation (which was inserted in LW after guarantee transfer)
+                var existed = contextData.Operations.FirstOrDefault(x => x.ClientId == operation.ClientId && x.AssetId == operation.AssetId);
+
+                if (existed != null)
+                {
+                    existed.ClientTradeId = trade?.Id;
+                    continue;
+                }
 
                 contextData.Operations.Add(new SwapOffchainContextData.Operation()
                 {
