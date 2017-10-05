@@ -177,9 +177,9 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
             List<IClientTrade> inserted = new List<IClientTrade>();
             foreach (var trade in clientTrades)
             {
-                var byMultisig = ClientTradeEntity.ByClientId.Create(trade);
-                var insertByClientIdTask = _tableStorage.InsertAsync(byMultisig);
-                var insertbyMultisigTask = _tableStorage.InsertAsync(ClientTradeEntity.ByMultisig.Create(trade));
+                var byClientId = ClientTradeEntity.ByClientId.Create(trade);
+                var insertByClientIdTask = _tableStorage.InsertAsync(byClientId);
+                var insertbyMultisigTask = !string.IsNullOrWhiteSpace(trade.Multisig) ? _tableStorage.InsertAsync(ClientTradeEntity.ByMultisig.Create(trade)) : Task.CompletedTask;
                 var insertbyDtTask = _tableStorage.InsertAsync(ClientTradeEntity.ByDt.Create(trade));
                 var insertByOrderId = trade.IsLimitOrderResult ? _tableStorage.InsertAsync(ClientTradeEntity.ByOrder.Create(trade)) : Task.CompletedTask;
 
@@ -188,7 +188,7 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
                 await insertbyDtTask;
                 await insertByOrderId;
 
-                inserted.Add(byMultisig);
+                inserted.Add(byClientId);
             }
 
             return inserted.ToArray();

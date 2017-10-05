@@ -119,10 +119,10 @@ namespace Lykke.Job.TransactionHandler.Queues.Models
             string btcTransactionId, IWalletCredentials walletCredentialsLimitA,
             IWalletCredentials walletCredentialsLimitB, double limitVolume, double oppositeLimitVolume)
         {
-            var clientId = walletCredentialsLimitA.ClientId;
+            var clientId = walletCredentialsLimitA?.ClientId ?? limitOrder.ClientId;
 
-            var mutlisig = walletCredentialsLimitA.MultiSig;
-            var fromMultisig = walletCredentialsLimitB.MultiSig;
+            var mutlisig = walletCredentialsLimitA?.MultiSig;
+            var fromMultisig = walletCredentialsLimitB?.MultiSig;
 
             var depositAssetRecord = CreateCommonPartForTradeRecord(trade, limitOrder, btcTransactionId);
             var withdrawAssetRecord = CreateCommonPartForTradeRecord(trade, limitOrder, btcTransactionId);
