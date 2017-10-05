@@ -145,14 +145,6 @@ namespace Lykke.Job.TransactionHandler.Modules
                 return new CachedDataDictionary<string, IAssetSetting>(
                     async () => (await ctx.Resolve<IAssetSettingRepository>().GetAssetSettings()).ToDictionary(itm => itm.Asset));
             }).SingleInstance();
-
-
-            builder.Register(x =>
-            {
-                var ctx = x.Resolve<IComponentContext>();
-                return new CachedDataDictionary<string, IOffchainIgnore>(
-                    async () => (await ctx.Resolve<IOffchainIgnoreRepository>().GetIgnoredClients()).ToDictionary(itm => itm.ClientId));
-            }).SingleInstance();
         }
 
         private void BindMatchingEngineChannel(ContainerBuilder container)
@@ -296,11 +288,7 @@ namespace Lykke.Job.TransactionHandler.Modules
 
             builder.RegisterInstance<IEmailCommandProducer>(
                 new EmailCommandProducer(new AzureQueueExt(_dbSettings.ClientPersonalInfoConnString, "emailsqueue")));
-
-            builder.RegisterInstance<IOffchainIgnoreRepository>(
-                new OffchainIgnoreRepository(
-                    new AzureTableStorage<OffchainIgnoreEntity>(_dbSettings.OffchainConnString, "OffchainClientsIgnore", _log)));
-
+            
             builder.RegisterInstance<IOffchainOrdersRepository>(
                 new OffchainOrderRepository(
                     new AzureTableStorage<OffchainOrder>(_dbSettings.OffchainConnString, "OffchainOrders", _log)));
