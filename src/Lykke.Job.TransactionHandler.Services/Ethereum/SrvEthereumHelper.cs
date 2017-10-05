@@ -2,8 +2,8 @@ using System;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Lykke.Job.TransactionHandler.Core.Services.Ethereum;
-using Lykke.Job.TransactionHandler.Services.Generated.EthereumCoreApi;
-using Lykke.Job.TransactionHandler.Services.Generated.EthereumCoreApi.Models;
+using Lykke.EthereumCoreClient;
+using Lykke.EthereumCoreClient.Models;
 using Lykke.Service.Assets.Client.Custom;
 using Nethereum.Util;
 
