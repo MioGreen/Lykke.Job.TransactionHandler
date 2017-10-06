@@ -56,7 +56,7 @@ using Lykke.Job.TransactionHandler.Services.BitCoin;
 using Lykke.Job.TransactionHandler.Services.BitCoin.BitCoinApiClient;
 using Lykke.Job.TransactionHandler.Services.ChronoBank;
 using Lykke.Job.TransactionHandler.Services.Ethereum;
-using Lykke.Job.TransactionHandler.Services.Generated.EthereumCoreApi;
+using Lykke.EthereumCoreClient;
 using Lykke.Job.TransactionHandler.Services.Http;
 using Lykke.Job.TransactionHandler.Services.MarginTrading;
 using Lykke.Job.TransactionHandler.Services.Messages.Email;
