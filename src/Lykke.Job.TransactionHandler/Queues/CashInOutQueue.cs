@@ -230,7 +230,8 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             try
             {
-                await _historyWriter.Push(newHistoryEntry);
+                await _cashOperationsRepository.RegisterAsync(operation)
+                    .ContinueWith(t => _historyWriter.Push(newHistoryEntry));
             }
             catch (Exception e)
             {
