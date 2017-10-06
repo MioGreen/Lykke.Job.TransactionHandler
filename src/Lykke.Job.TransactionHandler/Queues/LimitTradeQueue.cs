@@ -346,8 +346,10 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                 if (asset.Blockchain == Blockchain.Ethereum)
                 {
+                    var initialVolume = Math.Abs(offchainOrder.Volume);
                     // if order partially or fully executed then broadcast guarantee transfer
-                    if (offchainOrder.Volume > remainigVolume)
+                    // if initialVolume == remainigVolume then user cancelled limit order without partial executing
+                    if (initialVolume > remainigVolume)
                         await ProcessEthGuaranteeTransfer(order.Id, remainigVolume);
                     return;
                 }
