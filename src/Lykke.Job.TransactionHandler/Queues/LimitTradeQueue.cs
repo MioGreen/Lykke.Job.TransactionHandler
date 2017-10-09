@@ -140,23 +140,27 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                     var isTrusted = trusted[meOrder.ClientId];
 
-                    var prevOrderState = await _limitOrdersRepository.GetOrderAsync(meOrder.Id);
+                    var aggregated = AggregateSwaps(limitOrderWithTrades.Trades);
+                    
+                    ILimitOrder prevOrderState = null;
+
+                    // need previous order state for not trusted clients
+                    if (!isTrusted)
+                        prevOrderState = await _limitOrdersRepository.GetOrderAsync(meOrder.Id);
 
                     await _limitOrdersRepository.CreateOrUpdateAsync(meOrder);
 
-                    await _bitcoinTransactionService.CreateOrUpdateAsync(meOrder.Id);
-
                     var status = (OrderStatus)Enum.Parse(typeof(OrderStatus), meOrder.Status);
-
-                    var aggregated = AggregateSwaps(limitOrderWithTrades.Trades);
-
+                    
                     IClientTrade[] trades = null;
                     if (status == OrderStatus.Processing || status == OrderStatus.Matched)
-                        trades = await ProcessTrades(aggregated, limitOrderWithTrades);
+                        trades = await SaveTrades(limitOrderWithTrades);
 
                     // all code below is for untrusted users
                     if (isTrusted)
                         continue;
+
+                    await SaveTransactionAndContext(trades, aggregated, limitOrderWithTrades);
 
                     switch (status)
                     {
@@ -198,7 +202,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             return true;
         }
 
-        private async Task<IClientTrade[]> ProcessTrades(List<AggregatedTransfer> operations, LimitQueueItem.LimitOrderWithTrades limitOrderWithTrades)
+        private async Task<IClientTrade[]> SaveTrades(LimitQueueItem.LimitOrderWithTrades limitOrderWithTrades)
         {
             if (limitOrderWithTrades.Trades.Count == 0)
                 return new IClientTrade[0];
@@ -210,6 +214,11 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             await _clientTradesRepository.SaveAsync(trades);
 
+            return trades;
+        }
+
+        private async Task<IClientTrade[]> SaveTransactionAndContext(IClientTrade[] trades, List<AggregatedTransfer> operations, LimitQueueItem.LimitOrderWithTrades limitOrderWithTrades)
+        {
             var contextData = await _bitcoinTransactionService.GetTransactionContext<SwapOffchainContextData>(limitOrderWithTrades.Order.Id) ?? new SwapOffchainContextData();
 
             foreach (var operation in operations.Where(x => x.ClientId == limitOrderWithTrades.Order.ClientId))
@@ -226,6 +235,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 });
             }
 
+            await _bitcoinTransactionService.CreateOrUpdateAsync(limitOrderWithTrades.Order.Id);
             await _bitcoinTransactionService.SetTransactionContext(limitOrderWithTrades.Order.Id, contextData);
 
             return trades;

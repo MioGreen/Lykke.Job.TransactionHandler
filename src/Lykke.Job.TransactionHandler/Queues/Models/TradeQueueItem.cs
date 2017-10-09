@@ -185,7 +185,7 @@ namespace Lykke.Job.TransactionHandler.Queues.Models
             {
                 var isBtcAsset = IsBitcoinAsset(assets, clientTrade.AssetId);
                 // if client guarantee transaction, then it is already settled
-                if (clientTrade.ClientId == walletCredentialsMarket.ClientId && clientTrade.Amount < 0)
+                if (clientTrade.ClientId == item.Order.ClientId && clientTrade.Amount < 0)
                     clientTrade.State = TransactionStates.SettledOffchain;
                 else
                     clientTrade.State = isBtcAsset ? TransactionStates.InProcessOnchain : TransactionStates.InProcessOffchain;
