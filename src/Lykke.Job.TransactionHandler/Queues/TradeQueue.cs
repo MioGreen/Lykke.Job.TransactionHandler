@@ -92,6 +92,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             _settings = settings;
             _ethClientEventLogs = ethClientEventLogs;
             _bitcoinTransactionService = bitcoinTransactionService;
+            _clientAccountsRepository = clientAccountsRepository;
             _log = log;
             _mapper = mapper;
             _clientAccountsRepository = clientAccountsRepository;
@@ -131,95 +132,34 @@ namespace Lykke.Job.TransactionHandler.Queues
             _subscriber?.Stop();
         }
 
-        public async Task<bool> ProcessMessage(TradeQueueItem tradeItem)
+        public async Task<bool> ProcessMessage(TradeQueueItem queueMessage)
         {
-            await _marketOrdersRepository.CreateAsync(tradeItem.Order);
+            await _marketOrdersRepository.CreateAsync(queueMessage.Order);
 
-            if (!tradeItem.Order.Status.Equals("matched", StringComparison.OrdinalIgnoreCase))
+            if (!queueMessage.Order.Status.Equals("matched", StringComparison.OrdinalIgnoreCase))
             {
-                await _log.WriteInfoAsync(nameof(TradeQueue), nameof(ProcessMessage), tradeItem.Order.ToJson(), "Message processing being aborted, due to order status is not matched. Order was saved");
+                await _log.WriteInfoAsync(nameof(TradeQueue), nameof(ProcessMessage), queueMessage.Order.ToJson(), "Message processing being aborted, due to order status is not matched. Order was saved");
                 return true;
             }
-
-            // offchain operation
-            var offchainOrder = await _offchainOrdersRepository.GetOrder(tradeItem.Order.ExternalId);
-            if (offchainOrder != null)
-                return await ProcessOffchainMessage(offchainOrder, tradeItem);
-
-            var idx = 0;
-            foreach (var trade in tradeItem.Trades)
-            {
-                trade.Timestamp = trade.Timestamp.AddMilliseconds(idx++);
-
-                var transactionId = Guid.NewGuid();
-
-                var walletCredsMarket = await _walletCredentialsRepository.GetAsync(trade.MarketClientId);
-                var walletCredsLimit = await _walletCredentialsRepository.GetAsync(trade.LimitClientId);
-
-                var tradeRecordsInfo = trade.GetTradeRecords(tradeItem.Order, transactionId.ToString(),
-                    walletCredsMarket, walletCredsLimit);
-                var requestTradeRecords = _mapper.Map<IEnumerable<ClientTrade>>(tradeRecordsInfo);
-                var responseTradeRecords = await _clientTradesRepositoryClient.SaveAsync(requestTradeRecords.ToArray());
-                var tradeRecords = _mapper.Map<IEnumerable<IClientTrade>>(responseTradeRecords);
-
-                SwapContextData contextData = PrepareContextData(tradeRecords.ToArray());
-
-                await _bitcoinTransactionsRepository.CreateAsync(transactionId.ToString(), BitCoinCommands.Swap, "", null, "");
-                await _bitcoinTransactionService.SetTransactionContext(transactionId.ToString(), contextData);
-
-                var amount1 = trade.MarketVolume;
-                var amount2 = trade.LimitVolume;
-
-                //Send to bitcoin
-                await _bitcoinCommandSender.SendCommand(new SwapCommand
-                {
-                    MultisigCustomer1 = walletCredsMarket.MultiSig,
-                    Asset1 = trade.MarketAsset,
-                    Amount1 = amount1,
-                    MultisigCustomer2 = walletCredsLimit.MultiSig,
-                    Asset2 = trade.LimitAsset,
-                    Amount2 = amount2,
-                    Context = contextData.ToJson(),
-                    TransactionId = transactionId
-                });
-            }
-
-            return true;
-        }
-
-        private static SwapContextData PrepareContextData(IClientTrade[] tradeRecords)
-        {
-            return new SwapContextData
-            {
-                Trades = tradeRecords
-                    .Select(t => new SwapContextData.TradeModel
-                    {
-                        ClientId = t.ClientId,
-                        TradeId = t.Id
-                    }).ToArray(),
-                SignsClientIds = tradeRecords
-                    .Select(t => t.ClientId).Distinct().ToArray()
-            };
-        }
-
-        private async Task<bool> ProcessOffchainMessage(IOffchainOrder offchainOrder, TradeQueueItem queueMessage)
-        {
-            var ethereumTxRequest = await _ethereumTransactionRequestRepository.GetByOrderAsync(offchainOrder.OrderId);
 
             var walletCredsMarket = await _walletCredentialsRepository.GetAsync(queueMessage.Trades[0].MarketClientId);
             var walletCredsLimit = await _walletCredentialsRepository.GetAsync(queueMessage.Trades[0].LimitClientId);
 
             var clientTrades = queueMessage.ToDomainOffchain(walletCredsMarket, walletCredsLimit, await _assetsService.GetAllAssetsAsync());
-
-            // get operations only by market order user (limit user will be processed in limit trade queue)
-            var operations = AggregateSwaps(queueMessage.Trades).Where(x => x.ClientId == queueMessage.Order.ClientId).ToList();
-
-            await CreateTransaction(offchainOrder.Id, operations, clientTrades);
-
+            
             var notify = new HashSet<string>();
             try
             {
-                var trusted = new Dictionary<string, bool>();
+                // for trusted clients only write history (finally block)
+                if (await _clientAccountsRepository.IsTrusted(queueMessage.Order.ClientId))
+                    return true;
+
+                // get operations only by market order user (limit user will be processed in limit trade queue)
+                var operations = AggregateSwaps(queueMessage.Trades).Where(x => x.ClientId == queueMessage.Order.ClientId).ToList();
+
+                await CreateTransaction(queueMessage.Order.ExternalId, operations, clientTrades);
+
+                var ethereumTxRequest = await _ethereumTransactionRequestRepository.GetByOrderAsync(queueMessage.Order.ExternalId);
 
                 if (ethereumTxRequest != null)
                 {
@@ -234,21 +174,17 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                 foreach (var operation in sellOperations)
                 {
-                    if (!trusted.ContainsKey(operation.ClientId))
-                        trusted[operation.ClientId] = await _clientAccountsRepository.IsTrusted(operation.ClientId);
-
-                    if (trusted[operation.ClientId])
-                        continue;
-
                     var asset = await _assetsService.TryGetAssetAsync(operation.AssetId);
                     if (asset.Blockchain == Blockchain.Ethereum)
                         continue;   //guarantee transfer already sent for eth
 
+                    // return change in offchain
+                    var offchainOrder = await _offchainOrdersRepository.GetOrder(queueMessage.Order.ExternalId);
 
                     var change = offchainOrder.ReservedVolume - Math.Abs(operation.Amount);
 
                     if (change < 0)
-                        await _log.WriteWarningAsync(nameof(TradeQueue), nameof(ProcessOffchainMessage),
+                        await _log.WriteWarningAsync(nameof(TradeQueue), nameof(ProcessMessage),
                             $"Order: [{offchainOrder.OrderId}], data: [{operation.ToJson()}]",
                             "Diff is less than ZERO !");
 
@@ -262,21 +198,15 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                 foreach (var operation in buyOperations)
                 {
-                    if (!trusted.ContainsKey(operation.ClientId))
-                        trusted[operation.ClientId] = await _clientAccountsRepository.IsTrusted(operation.ClientId);
-
-                    if (trusted[operation.ClientId])
-                        continue;
-
                     var asset = await _assetsService.TryGetAssetAsync(operation.AssetId);
                     if (asset.Blockchain == Blockchain.Ethereum)
                     {
-                        await ProcessEthBuy(operation, asset, clientTrades, offchainOrder.OrderId);
+                        await ProcessEthBuy(operation, asset, clientTrades, queueMessage.Order.ExternalId);
                         continue;
                     }
 
                     await _offchainRequestService.CreateOffchainRequestAndNotify(operation.TransferId, operation.ClientId,
-                        operation.AssetId, operation.Amount, offchainOrder.OrderId, OffchainTransferType.FromHub);
+                        operation.AssetId, operation.Amount, queueMessage.Order.ExternalId, OffchainTransferType.FromHub);
                     notify.Add(operation.ClientId);
                 }
             }
