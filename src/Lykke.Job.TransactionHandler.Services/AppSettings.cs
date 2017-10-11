@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Linq;
 using System.Net;
+using Lykke.Service.PersonalData.Settings;
 
-namespace Lykke.Job.TransactionHandler.Core
+namespace Lykke.Job.TransactionHandler.Services
 {
     public class AppSettings
     {
@@ -22,6 +23,7 @@ namespace Lykke.Job.TransactionHandler.Core
             public DbSettings Db { get; set; }
             public AssetsCacheSettings AssetsCache { get; set; }
             public string ExchangeOperationsServiceUrl { get; set; }
+            public PersonalDataServiceSettings PersonalDataServiceSettings { get; set; }
         }
 
         public class DbSettings
