@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using Common;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
+using Lykke.Job.TransactionHandler.Core.Services.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Services.BitCoin.BitCoinApi;
 using Lykke.Job.TransactionHandler.Core.Services.BitCoin.BitCoinApi.Models;
 using Lykke.JobTriggers.Triggers.Attributes;
@@ -12,12 +13,14 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
     {
         private readonly IBitcoinApiClient _bitcoinApiClient;
         private readonly IBitCoinTransactionsRepository _bitCoinTransactionsRepository;
+        private readonly IBitcoinTransactionService _bitcoinTransactionService;
 
         public InTransactionsQueueFunctions(IBitcoinApiClient bitcoinApiClient,
-            IBitCoinTransactionsRepository bitCoinTransactionsRepository)
+            IBitCoinTransactionsRepository bitCoinTransactionsRepository, IBitcoinTransactionService bitcoinTransactionService)
         {
             _bitcoinApiClient = bitcoinApiClient;
             _bitCoinTransactionsRepository = bitCoinTransactionsRepository;
+            _bitcoinTransactionService = bitcoinTransactionService;
         }
 
         [QueueTrigger("intransactions", maxPollingIntervalMs: 100, maxDequeueCount: 1)]
@@ -157,16 +160,19 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
 
         private async Task<TransactionRepsonse> ProcessBitcoinApiResponse(string request, string commandType, OnchainResponse response, string contextData, Guid? existingTxId = null)
         {
+            var id = Guid.NewGuid().ToString();
+
             if (response.Error != null)
             {
-                await _bitCoinTransactionsRepository
-                    .CreateAsync(Guid.NewGuid().ToString(), commandType, request, contextData, response?.ToJson());
+                await _bitCoinTransactionsRepository.CreateAsync(id, commandType, request, null, response?.ToJson());
             }
             else
             {
-                await _bitCoinTransactionsRepository
-                    .UpdateAsync(response.Transaction.TransactionId.ToString(), request, contextData, response?.ToJson());
+                id = response.Transaction.TransactionId.ToString();
+                await _bitCoinTransactionsRepository.UpdateAsync(id, request, null, response?.ToJson());
             }
+
+            await _bitcoinTransactionService.SetStringTransactionContext(id, contextData);
 
             return response.Transaction;
         }

@@ -3,6 +3,7 @@ using System.Linq;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using AutoMapper;
+using AzureStorage.Blob;
 using AzureStorage.Queue;
 using AzureStorage.Tables;
 using AzureStorage.Tables.Templates.Index;
@@ -40,6 +41,7 @@ using Lykke.Job.TransactionHandler.Core.Domain.Quanta;
 using Lykke.Job.TransactionHandler.Core.Domain.SolarCoin;
 using Lykke.Job.TransactionHandler.Core.Services;
 using Lykke.Job.TransactionHandler.Core.Services.AppNotifications;
+using Lykke.Job.TransactionHandler.Core.Services.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Services.BitCoin.BitCoinApi;
 using Lykke.Job.TransactionHandler.Core.Services.ChronoBank;
 using Lykke.Job.TransactionHandler.Core.Services.Ethereum;
@@ -51,6 +53,7 @@ using Lykke.Job.TransactionHandler.Core.Services.Quanta;
 using Lykke.Job.TransactionHandler.Core.Services.SolarCoin;
 using Lykke.Job.TransactionHandler.Queues;
 using Lykke.Job.TransactionHandler.Services;
+using Lykke.Job.TransactionHandler.Services.BitCoin;
 using Lykke.Job.TransactionHandler.Services.BitCoin.BitCoinApiClient;
 using Lykke.Job.TransactionHandler.Services.ChronoBank;
 using Lykke.Job.TransactionHandler.Services.Ethereum;
@@ -66,6 +69,8 @@ using Lykke.MatchingEngine.Connector.Services;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.ExchangeOperations.Client;
 using Lykke.Service.ExchangeOperations.Contracts;
+using Lykke.Service.OperationsHistory.HistoryWriter.Abstractions;
+using Lykke.Service.OperationsHistory.HistoryWriter.Implementation;
 using Lykke.Service.PersonalData.Client;
 using Lykke.Service.PersonalData.Contract;
 using Microsoft.Extensions.DependencyInjection;
@@ -81,7 +86,7 @@ namespace Lykke.Job.TransactionHandler.Modules
         // NOTE: you can remove it if you don't need to use IServiceCollection extensions to register service specific dependencies
         private readonly IServiceCollection _services;
 
-        
+
 
         public JobModule(AppSettings settings, ILog log)
         {
@@ -112,9 +117,9 @@ namespace Lykke.Job.TransactionHandler.Modules
 
             _services.UseAssetsClient(new AssetServiceSettings
             {
-               BaseUri = new Uri(_settings.Assets.ServiceUrl),
-               AssetPairsCacheExpirationPeriod = _jobSettings.AssetsCache.ExpirationPeriod,
-               AssetsCacheExpirationPeriod = _jobSettings.AssetsCache.ExpirationPeriod
+                BaseUri = new Uri(_settings.Assets.ServiceUrl),
+                AssetPairsCacheExpirationPeriod = _jobSettings.AssetsCache.ExpirationPeriod,
+                AssetsCacheExpirationPeriod = _jobSettings.AssetsCache.ExpirationPeriod
             });
 
             Mapper.Initialize(cfg => cfg.CreateMap<IBcnCredentialsRecord, BcnCredentialsRecordEntity>().IgnoreTableEntityFields());
@@ -170,11 +175,11 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.Register<IAppNotifications>(x => new SrvAppNotifications(
                 _settings.AppNotifications.HubConnString,
                 _settings.AppNotifications.HubName));
-            
+
             builder.RegisterType<ChronoBankService>().As<IChronoBankService>().SingleInstance();
             builder.RegisterType<SrvSolarCoinHelper>().As<ISrvSolarCoinHelper>().SingleInstance();
             builder.RegisterType<QuantaService>().As<IQuantaService>().SingleInstance();
-            
+
             builder.Register<IEthereumApi>(x =>
             {
                 var api = new EthereumApi(new Uri(_settings.Ethereum.EthereumCoreUrl));
@@ -183,7 +188,7 @@ namespace Lykke.Job.TransactionHandler.Modules
             }).SingleInstance();
 
             builder.RegisterType<SrvEthereumHelper>().As<ISrvEthereumHelper>().SingleInstance();
-            
+
             builder.RegisterType<MarginDataServiceResolver>()
                 .As<IMarginDataServiceResolver>()
                 .SingleInstance()
@@ -191,6 +196,11 @@ namespace Lykke.Job.TransactionHandler.Modules
 
             builder.RegisterType<EmailSender>().As<IEmailSender>().SingleInstance();
             builder.RegisterType<SrvEmailsFacade>().As<ISrvEmailsFacade>().SingleInstance();
+
+            builder.RegisterType<BitcoinTransactionService>().As<IBitcoinTransactionService>().SingleInstance();
+
+            var historyWriter = new HistoryWriter(_dbSettings.HistoryLogsConnString, _log);
+            builder.RegisterInstance(historyWriter).As<IHistoryWriter>();
 
             builder.RegisterType<PersonalDataService>()
                 .As<IPersonalDataService>()
@@ -227,10 +237,14 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.RegisterInstance<ICashOutAttemptRepository>(
                 new CashOutAttemptRepository(
                     new AzureTableStorage<CashOutAttemptEntity>(_dbSettings.BalancesInfoConnString, "CashOutAttempt", _log)));
-            
+
             builder.RegisterInstance<IClientTradesRepository>(
                 new ClientTradesRepository(
                     new AzureTableStorage<ClientTradeEntity>(_dbSettings.HTradesConnString, "Trades", _log)));
+
+            builder.RegisterInstance<ILimitTradeEventsRepository>(
+                new LimitTradeEventsRepository(
+                    new AzureTableStorage<LimitTradeEventEntity>(_dbSettings.ClientPersonalInfoConnString, "LimitTradeEvents", _log)));
 
             builder.RegisterInstance<IForwardWithdrawalRepository>(
                 new ForwardWithdrawalRepository(
@@ -263,17 +277,16 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.RegisterInstance<IMarketOrdersRepository>(
                 new MarketOrdersRepository(new AzureTableStorage<MarketOrderEntity>(_dbSettings.HMarketOrdersConnString, "MarketOrders", _log)));
 
+            builder.RegisterInstance<ILimitOrdersRepository>(
+                new LimitOrdersRepository(new AzureTableStorage<LimitOrderEntity>(_dbSettings.HMarketOrdersConnString, "LimitOrders", _log)));
+
             builder.RegisterInstance<IMarginTradingPaymentLogRepository>(
                 new MarginTradingPaymentLogRepository(
                     new AzureTableStorage<MarginTradingPaymentLogEntity>(_dbSettings.LogsConnString, "MarginTradingPaymentsLog", _log)));
 
             builder.RegisterInstance<IEmailCommandProducer>(
                 new EmailCommandProducer(new AzureQueueExt(_dbSettings.ClientPersonalInfoConnString, "emailsqueue")));
-
-            builder.RegisterInstance<IOffchainIgnoreRepository>(
-                new OffchainIgnoreRepository(
-                    new AzureTableStorage<OffchainIgnoreEntity>(_dbSettings.OffchainConnString, "OffchainClientsIgnore", _log)));
-
+            
             builder.RegisterInstance<IOffchainOrdersRepository>(
                 new OffchainOrderRepository(
                     new AzureTableStorage<OffchainOrder>(_dbSettings.OffchainConnString, "OffchainOrders", _log)));
@@ -296,19 +309,19 @@ namespace Lykke.Job.TransactionHandler.Modules
 
             builder.RegisterInstance<ISrvSolarCoinCommandProducer>(
                 new SrvSolarCoinCommandProducer(new AzureQueueExt(_dbSettings.SolarCoinConnString, "solar-out")));
+
+            builder.RegisterInstance(new BitcoinTransactionContextBlobStorage(new AzureBlobStorage(_dbSettings.BitCoinQueueConnectionString)))
+                .As<IBitcoinTransactionContextBlobStorage>();
         }
 
         private void BindRabbitMq(ContainerBuilder builder)
         {
             builder.RegisterInstance(_settings.RabbitMq);
-            builder.RegisterType<CashInOutQueue>().SingleInstance().AutoActivate();
-            builder.RegisterType<TransferQueue>().SingleInstance().AutoActivate();
-            builder.RegisterType<SwapQueue>().SingleInstance().AutoActivate();
-            builder.RegisterType<TradeQueue>()
-                .SingleInstance()
-                .WithParameter(TypedParameter.From(_settings.Ethereum))
-                .AutoActivate();
-            builder.RegisterType<EthereumEventsQueue>().SingleInstance().AutoActivate();
+            builder.RegisterType<CashInOutQueue>().SingleInstance();
+            builder.RegisterType<TransferQueue>().SingleInstance();
+            builder.RegisterType<LimitTradeQueue>().SingleInstance().WithParameter(TypedParameter.From(_settings.Ethereum));
+            builder.RegisterType<TradeQueue>().SingleInstance().WithParameter(TypedParameter.From(_settings.Ethereum));
+            builder.RegisterType<EthereumEventsQueue>().SingleInstance();
         }
     }
 }

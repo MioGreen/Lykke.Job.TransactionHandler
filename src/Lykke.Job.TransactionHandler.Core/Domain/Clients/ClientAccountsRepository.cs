@@ -32,5 +32,7 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Clients
     public interface IClientAccountsRepository
     {
         Task<IClientAccount> GetByIdAsync(string id);
+
+        Task<bool> IsTrusted(string clientId);
     }
 }

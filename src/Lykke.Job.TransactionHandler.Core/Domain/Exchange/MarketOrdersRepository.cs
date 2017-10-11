@@ -4,21 +4,6 @@ using System.Threading.Tasks;
 
 namespace Lykke.Job.TransactionHandler.Core.Domain.Exchange
 {
-    public class MatchedLimitOrder : MatchedOrder
-    {
-        public double Price { get; set; }
-
-        public static MatchedLimitOrder Create(ILimitOrder limitOrder, double volume)
-        {
-            return new MatchedLimitOrder
-            {
-                Price = limitOrder.Price,
-                Id = limitOrder.Id,
-                Volume = volume
-            };
-        }
-    }
-
     public interface IMarketOrder : IOrderBase
     {
         DateTime? MatchedAt { get; }
@@ -30,7 +15,7 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Exchange
         public string Id { get; set; }
         public string ClientId { get; set; }
         public string AssetPairId { get; set; }
-        public OrderAction OrderAction { get; set; }
+        public OrderType OrderAction { get; set; }
         public double Volume { get; set; }
         public double Price { get; set; }
         public string Status { get; set; }

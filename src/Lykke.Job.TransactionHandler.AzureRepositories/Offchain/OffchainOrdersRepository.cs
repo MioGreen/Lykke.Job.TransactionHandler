@@ -13,10 +13,12 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
         public string ClientId { get; set; }
         public DateTime CreatedAt { get; set; }
         public decimal Volume { get; set; }
+        public decimal ReservedVolume { get; set; }
         public string AssetPair { get; set; }
         public string Asset { get; set; }
         public bool Straight { get; set; }
         public decimal Price { get; set; }
+        public bool IsLimit { get; set; }
 
 
         public static string GeneratePartitionKey()
@@ -24,8 +26,8 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
             return "Order";
         }
 
-        public static OffchainOrder Create(string clientId, string asset, string assetPair, decimal volume,
-            bool straight)
+        public static OffchainOrder Create(string clientId, string asset, string assetPair, decimal volume, decimal reservedVolme,
+            bool straight, decimal price = 0)
         {
             var id = Guid.NewGuid().ToString();
             return new OffchainOrder
@@ -36,9 +38,12 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
                 ClientId = clientId,
                 CreatedAt = DateTime.UtcNow,
                 Volume = volume,
+                ReservedVolume = reservedVolme,
                 AssetPair = assetPair,
                 Asset = asset,
-                Straight = straight
+                Straight = straight,
+                Price = price,
+                IsLimit = price > 0
             };
         }
     }
@@ -55,22 +60,6 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Offchain
         public async Task<IOffchainOrder> GetOrder(string id)
         {
             return await _storage.GetDataAsync(OffchainOrder.GeneratePartitionKey(), id);
-        }
-
-        public async Task<IOffchainOrder> CreateOrder(string clientId, string asset, string assetPair, decimal volume, bool straight)
-        {
-            var entity = OffchainOrder.Create(clientId, asset, assetPair, volume, straight);
-            await _storage.InsertAsync(entity);
-            return entity;
-        }
-
-        public Task UpdatePrice(string orderId, decimal price)
-        {
-            return _storage.ReplaceAsync(OffchainOrder.GeneratePartitionKey(), orderId, order =>
-            {
-                order.Price = price;
-                return order;
-            });
         }
     }
 }

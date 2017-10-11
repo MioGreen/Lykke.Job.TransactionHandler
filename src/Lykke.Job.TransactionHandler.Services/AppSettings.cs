@@ -40,6 +40,7 @@ namespace Lykke.Job.TransactionHandler.Services
             public string OffchainConnString { get; set; }
             public string QuantaSrvConnString { get; set; }
             public string SolarCoinConnString { get; set; }
+            public string HistoryLogsConnString { get; set; }
         }
 
         public class AssetsCacheSettings
@@ -66,7 +67,14 @@ namespace Lykke.Job.TransactionHandler.Services
 
             public IPEndPoint GetClientIpEndPoint(bool useInternal = false)
             {
-                return new IPEndPoint(IPAddress.Parse(useInternal ? InternalHost : Host), Port);
+                string host = useInternal ? InternalHost : Host;
+
+                IPAddress ipAddress;
+                if (IPAddress.TryParse(host, out ipAddress))
+                    return new IPEndPoint(ipAddress, Port);
+
+                var addresses = Dns.GetHostAddressesAsync(host).Result;
+                return new IPEndPoint(addresses[0], Port);
             }
         }
 
@@ -108,6 +116,8 @@ namespace Lykke.Job.TransactionHandler.Services
 
         public class RabbitMqSettings
         {
+            public string ConnectionString { get; set; }
+
             public string ExternalHost { get; set; }
 
             public int Port { get; set; }
@@ -115,6 +125,7 @@ namespace Lykke.Job.TransactionHandler.Services
             public string Password { get; set; }
 
             public string ExchangeSwap { get; set; }
+            public string ExchangeLimit { get; set; }
 
             public string ExchangeCashOperation { get; set; }
             public string ExchangeTransfer { get; set; }

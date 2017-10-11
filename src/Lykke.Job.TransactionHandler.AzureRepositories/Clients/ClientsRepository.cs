@@ -81,8 +81,8 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Clients
         public string Salt { get; set; }
         public string Hash { get; set; }
         public string PartnerId { get; set; }
-
         public bool IsReviewAccount { get; set; }
+        public bool IsTrusted { get; set; }
 
         private class EqualityComparerById : IEqualityComparer<ClientAccountEntity>
         {
@@ -120,6 +120,13 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Clients
             var rowKey = ClientAccountEntity.GenerateRowKey(id);
 
             return await _clientsTablestorage.GetDataAsync(partitionKey, rowKey);
+        }
+
+        public async Task<bool> IsTrusted(string clientId)
+        {
+            var entity = await _clientsTablestorage.GetDataAsync(ClientAccountEntity.GeneratePartitionKey(), ClientAccountEntity.GenerateRowKey(clientId));
+
+            return entity?.IsTrusted ?? false;
         }
     }
 

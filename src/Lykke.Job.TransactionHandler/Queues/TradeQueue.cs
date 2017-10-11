@@ -8,30 +8,30 @@ using Lykke.Job.TransactionHandler.Core;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.Blockchain;
 using Lykke.Job.TransactionHandler.Core.Domain.CashOperations;
+using Lykke.Job.TransactionHandler.Core.Domain.Clients;
 using Lykke.Job.TransactionHandler.Core.Domain.Ethereum;
 using Lykke.Job.TransactionHandler.Core.Domain.Exchange;
 using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
+using Lykke.Job.TransactionHandler.Core.Services.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Services.Ethereum;
 using Lykke.Job.TransactionHandler.Core.Services.Offchain;
-using Lykke.Job.TransactionHandler.Queues.Common;
 using Lykke.Job.TransactionHandler.Queues.Models;
+using Lykke.RabbitMqBroker;
+using Lykke.RabbitMqBroker.Subscriber;
 using Lykke.Job.TransactionHandler.Services;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.Assets.Client.Models;
-using Newtonsoft.Json;
 
 namespace Lykke.Job.TransactionHandler.Queues
 {
-    public class TradeQueue : RabbitQueue
+    public class TradeQueue : IQueueSubscriber
     {
 #if DEBUG
         private const string QueueName = "transactions.trades-dev";
         private const bool QueueDurable = false;
-        private const bool QueueAutoDelete = true;
 #else
         private const string QueueName = "transactions.trades";
         private const bool QueueDurable = true;
-        private const bool QueueAutoDelete = false;
 #endif
 
         private readonly IBitcoinCommandSender _bitcoinCommandSender;
@@ -41,8 +41,6 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IClientTradesRepository _clientTradesRepository;
         private readonly IOffchainRequestService _offchainRequestService;
         private readonly IOffchainOrdersRepository _offchainOrdersRepository;
-        private readonly IOffchainTransferRepository _offchainTransferRepository;
-        private readonly IOffchainIgnoreRepository _offchainIgnoreRepository;
         private readonly IEthereumTransactionRequestRepository _ethereumTransactionRequestRepository;
         private readonly ISrvEthereumHelper _srvEthereumHelper;
         private readonly IBcnClientCredentialsRepository _bcnClientCredentialsRepository;
@@ -50,29 +48,30 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IEthClientEventLogs _ethClientEventLogs;
         private readonly ILog _log;
         private readonly ICachedAssetsService _assetsService;
+        private readonly IBitcoinTransactionService _bitcoinTransactionService;
+        private readonly IClientAccountsRepository _clientAccountsRepository;
+
+        private readonly AppSettings.RabbitMqSettings _rabbitConfig;
+        private RabbitMqSubscriber<TradeQueueItem> _subscriber;
 
         public TradeQueue(
-            AppSettings.RabbitMqSettings config, 
+            AppSettings.RabbitMqSettings config,
             ILog log,
             IBitcoinCommandSender bitcoinCommandSender,
             IWalletCredentialsRepository walletCredentialsRepository,
             IBitCoinTransactionsRepository bitcoinTransactionsRepository,
             IMarketOrdersRepository marketOrdersRepository,
-            IClientTradesRepository clientTradesRepository, 
+            IClientTradesRepository clientTradesRepository,
             IOffchainRequestService offchainRequestService,
-            IOffchainOrdersRepository offchainOrdersRepository, 
-            IOffchainTransferRepository offchainTransferRepository,
-            IOffchainIgnoreRepository offchainIgnoreRepository, 
+            IOffchainOrdersRepository offchainOrdersRepository,
             IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
-            ISrvEthereumHelper srvEthereumHelper, 
+            ISrvEthereumHelper srvEthereumHelper,
             ICachedAssetsService assetsService,
-            IBcnClientCredentialsRepository bcnClientCredentialsRepository, 
+            IBcnClientCredentialsRepository bcnClientCredentialsRepository,
             AppSettings.EthereumSettings settings,
-            IEthClientEventLogs ethClientEventLogs)
-            : base(config.ExternalHost, config.Port,
-                config.ExchangeSwap, QueueName,
-                config.Username, config.Password, log, QueueDurable, QueueAutoDelete)
+            IEthClientEventLogs ethClientEventLogs, IBitcoinTransactionService bitcoinTransactionService, IClientAccountsRepository clientAccountsRepository)
         {
+            _rabbitConfig = config;
             _bitcoinCommandSender = bitcoinCommandSender;
             _walletCredentialsRepository = walletCredentialsRepository;
             _bitcoinTransactionsRepository = bitcoinTransactionsRepository;
@@ -80,27 +79,58 @@ namespace Lykke.Job.TransactionHandler.Queues
             _clientTradesRepository = clientTradesRepository;
             _offchainRequestService = offchainRequestService;
             _offchainOrdersRepository = offchainOrdersRepository;
-            _offchainTransferRepository = offchainTransferRepository;
-            _offchainIgnoreRepository = offchainIgnoreRepository;
             _ethereumTransactionRequestRepository = ethereumTransactionRequestRepository;
             _srvEthereumHelper = srvEthereumHelper;
             _assetsService = assetsService;
             _bcnClientCredentialsRepository = bcnClientCredentialsRepository;
             _settings = settings;
             _ethClientEventLogs = ethClientEventLogs;
+            _bitcoinTransactionService = bitcoinTransactionService;
+            _clientAccountsRepository = clientAccountsRepository;
             _log = log;
         }
 
-        public override async Task<bool> ProcessMessage(string message)
+        public void Start()
         {
-            var tradeItem = JsonConvert
-                .DeserializeObject<TradeQueueItem>(message);
+            var settings = new RabbitMqSubscriptionSettings
+            {
+                ConnectionString = _rabbitConfig.ConnectionString,
+                QueueName = QueueName,
+                ExchangeName = _rabbitConfig.ExchangeSwap,
+                DeadLetterExchangeName = $"{_rabbitConfig.ExchangeSwap}.dlx",
+                RoutingKey = "",
+                IsDurable = QueueDurable
+            };
 
+            try
+            {
+                _subscriber = new RabbitMqSubscriber<TradeQueueItem>(settings, new DeadQueueErrorHandlingStrategy(_log, settings))
+                    .SetMessageDeserializer(new JsonMessageDeserializer<TradeQueueItem>())
+                    .SetMessageReadStrategy(new MessageReadQueueStrategy())
+                    .Subscribe(ProcessMessage)
+                    .CreateDefaultBinding()
+                    .SetLogger(_log)
+                    .Start();
+            }
+            catch (Exception ex)
+            {
+                _log.WriteErrorAsync(nameof(TradeQueue), nameof(Start), null, ex).Wait();
+                throw;
+            }
+        }
+
+        public void Stop()
+        {
+            _subscriber?.Stop();
+        }
+
+        public async Task<bool> ProcessMessage(TradeQueueItem tradeItem)
+        {
             await _marketOrdersRepository.CreateAsync(tradeItem.Order);
 
             if (!tradeItem.Order.Status.Equals("matched", StringComparison.OrdinalIgnoreCase))
             {
-                await _log.WriteInfoAsync(nameof(TradeQueue), nameof(ProcessMessage), message, "Message processing being aborted, due to order status is not matched. Order was saved");
+                await _log.WriteInfoAsync(nameof(TradeQueue), nameof(ProcessMessage), tradeItem.Order.ToJson(), "Message processing being aborted, due to order status is not matched. Order was saved");
                 return true;
             }
 
@@ -124,7 +154,8 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                 SwapContextData contextData = PrepareContextData(tradeRecords);
 
-                await _bitcoinTransactionsRepository.CreateAsync(transactionId.ToString(), BitCoinCommands.Swap, "", contextData.ToJson(), "");
+                await _bitcoinTransactionsRepository.CreateAsync(transactionId.ToString(), BitCoinCommands.Swap, "", null, "");
+                await _bitcoinTransactionService.SetTransactionContext(transactionId.ToString(), contextData);
 
                 var amount1 = trade.MarketVolume;
                 var amount2 = trade.LimitVolume;
@@ -163,7 +194,6 @@ namespace Lykke.Job.TransactionHandler.Queues
 
         private async Task<bool> ProcessOffchainMessage(IOffchainOrder offchainOrder, TradeQueueItem queueMessage)
         {
-            var clientTransfer = (await _offchainTransferRepository.GetTransfersByOrder(offchainOrder.ClientId, offchainOrder.OrderId)).FirstOrDefault();
             var ethereumTxRequest = await _ethereumTransactionRequestRepository.GetByOrderAsync(offchainOrder.OrderId);
 
             var walletCredsMarket = await _walletCredentialsRepository.GetAsync(queueMessage.Trades[0].MarketClientId);
@@ -171,13 +201,16 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             var clientTrades = queueMessage.ToDomainOffchain(walletCredsMarket, walletCredsLimit, await _assetsService.GetAllAssetsAsync());
 
-            var operations = AggregateSwaps(queueMessage.Trades);
+            // get operations only by market order user (limit user will be processed in limit trade queue)
+            var operations = AggregateSwaps(queueMessage.Trades).Where(x => x.ClientId == queueMessage.Order.ClientId).ToList();
 
             await CreateTransaction(offchainOrder.Id, operations, clientTrades);
 
             var notify = new HashSet<string>();
             try
             {
+                var trusted = new Dictionary<string, bool>();
+
                 if (ethereumTxRequest != null)
                 {
                     var wasTransferOk = await ProcessEthGuaranteeTransfer(ethereumTxRequest, operations, clientTrades);
@@ -191,44 +224,39 @@ namespace Lykke.Job.TransactionHandler.Queues
 
                 foreach (var operation in sellOperations)
                 {
-                    if (await _offchainIgnoreRepository.IsIgnored(operation.ClientId))
-                    {
-                        await _log.WriteInfoAsync(nameof(TradeQueue), nameof(ProcessOffchainMessage), $"Order: [{offchainOrder.OrderId}], data: [{operation.ToJson()}]", "Transfer ignored");
+                    if (!trusted.ContainsKey(operation.ClientId))
+                        trusted[operation.ClientId] = await _clientAccountsRepository.IsTrusted(operation.ClientId);
+
+                    if (trusted[operation.ClientId])
                         continue;
-                    }
 
                     var asset = await _assetsService.TryGetAssetAsync(operation.AssetId);
                     if (asset.Blockchain == Blockchain.Ethereum)
                         continue;   //guarantee transfer already sent for eth
 
 
-                    if (clientTransfer != null)
+                    var change = offchainOrder.ReservedVolume - Math.Abs(operation.Amount);
+
+                    if (change < 0)
+                        await _log.WriteWarningAsync(nameof(TradeQueue), nameof(ProcessOffchainMessage),
+                            $"Order: [{offchainOrder.OrderId}], data: [{operation.ToJson()}]",
+                            "Diff is less than ZERO !");
+
+                    if (change > 0)
                     {
-                        await _offchainTransferRepository.CompleteTransfer(clientTransfer.Id);
-
-                        var change = clientTransfer.Amount - Math.Abs(operation.Amount);
-
-                        if (change < 0)
-                            await _log.WriteWarningAsync(nameof(TradeQueue), nameof(ProcessOffchainMessage),
-                                $"Order: [{offchainOrder.OrderId}], data: [{operation.ToJson()}]",
-                                "Diff is less than ZERO !");
-
-                        if (change > 0)
-                        {
-                            await _offchainRequestService.CreateOffchainRequest(operation.TransferId, operation.ClientId,
-                                operation.AssetId, change, offchainOrder.OrderId, OffchainTransferType.FromHub);
-                            notify.Add(operation.ClientId);
-                        }
+                        await _offchainRequestService.CreateOffchainRequestAndNotify(operation.TransferId, operation.ClientId,
+                            operation.AssetId, change, offchainOrder.OrderId, OffchainTransferType.FromHub);
+                        notify.Add(operation.ClientId);
                     }
                 }
 
                 foreach (var operation in buyOperations)
                 {
-                    if (await _offchainIgnoreRepository.IsIgnored(operation.ClientId))
-                    {
-                        await _log.WriteInfoAsync(nameof(TradeQueue), nameof(ProcessOffchainMessage), $"Order: [{offchainOrder.OrderId}], data: [{operation.ToJson()}]", "Transfer ignored");
+                    if (!trusted.ContainsKey(operation.ClientId))
+                        trusted[operation.ClientId] = await _clientAccountsRepository.IsTrusted(operation.ClientId);
+
+                    if (trusted[operation.ClientId])
                         continue;
-                    }
 
                     var asset = await _assetsService.TryGetAssetAsync(operation.AssetId);
                     if (asset.Blockchain == Blockchain.Ethereum)
@@ -237,7 +265,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                         continue;
                     }
 
-                    await _offchainRequestService.CreateOffchainRequest(operation.TransferId, operation.ClientId,
+                    await _offchainRequestService.CreateOffchainRequestAndNotify(operation.TransferId, operation.ClientId,
                         operation.AssetId, operation.Amount, offchainOrder.OrderId, OffchainTransferType.FromHub);
                     notify.Add(operation.ClientId);
                 }
@@ -318,7 +346,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                 var change = ethereumTxRequest.Volume - Math.Abs(clientEthSellOperation.Amount);
 
                 EthereumResponse<OperationResponse> res;
-                var minAmountForAsset = (decimal) Math.Pow(10, -asset.Accuracy);
+                var minAmountForAsset = (decimal)Math.Pow(10, -asset.Accuracy);
                 if (change > 0 && Math.Abs(change) >= minAmountForAsset)
                 {
                     res = await _srvEthereumHelper.SendTransferWithChangeAsync(change,
@@ -383,7 +411,8 @@ namespace Lykke.Job.TransactionHandler.Queues
                 });
             }
 
-            await _bitcoinTransactionsRepository.CreateAsync(orderId, BitCoinCommands.SwapOffchain, "", contextData.ToJson(), "");
+            await _bitcoinTransactionsRepository.CreateAsync(orderId, BitCoinCommands.SwapOffchain, "", null, "");
+            await _bitcoinTransactionService.SetTransactionContext(orderId, contextData);
         }
 
         private List<AggregatedTransfer> AggregateSwaps(IEnumerable<TradeQueueItem.TradeInfo> swaps)
@@ -429,6 +458,11 @@ namespace Lykke.Job.TransactionHandler.Queues
             public decimal Amount { get; set; }
 
             public string TransferId { get; set; }
+        }
+
+        public void Dispose()
+        {
+            Stop();
         }
     }
 }

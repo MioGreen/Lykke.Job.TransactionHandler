@@ -19,6 +19,8 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
         public double Price { get; set; }
         public DateTime? DetectionTime { get; set; }
         public int Confirmations { get; set; }
+        public string OppositeLimitOrderId { get; set; }
+        public bool IsLimitOrderResult { get; set; }
         public double Amount => Volume;
         public string AssetId { get; set; }
         public string BlockChainHash { get; set; }
@@ -113,6 +115,27 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
             }
         }
 
+        public static class ByOrder
+        {
+            public static string GeneratePartitionKey(string orderId)
+            {
+                return orderId;
+            }
+
+            public static string GenerateRowKey(string tradeId)
+            {
+                return tradeId;
+            }
+
+            public static ClientTradeEntity Create(IClientTrade src)
+            {
+                var entity = CreateNew(src);
+                entity.RowKey = GenerateRowKey(src.Id);
+                entity.PartitionKey = GeneratePartitionKey(src.LimitOrderId);
+                return entity;
+            }
+        }
+
         public static ClientTradeEntity CreateNew(IClientTrade src)
         {
             return new ClientTradeEntity
@@ -133,7 +156,9 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
                 Confirmations = src.Confirmations,
                 IsSettled = src.IsSettled,
                 State = src.State,
-                TransactionId = src.TransactionId
+                TransactionId = src.TransactionId,
+                IsLimitOrderResult = src.IsLimitOrderResult,
+                OppositeLimitOrderId = src.OppositeLimitOrderId
             };
         }
     }
@@ -152,16 +177,18 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
             List<IClientTrade> inserted = new List<IClientTrade>();
             foreach (var trade in clientTrades)
             {
-                var byMultisig = ClientTradeEntity.ByClientId.Create(trade);
-                var insertByClientIdTask = _tableStorage.InsertAsync(byMultisig);
-                var insertbyMultisigTask = _tableStorage.InsertAsync(ClientTradeEntity.ByMultisig.Create(trade));
+                var byClientId = ClientTradeEntity.ByClientId.Create(trade);
+                var insertByClientIdTask = _tableStorage.InsertAsync(byClientId);
+                var insertbyMultisigTask = !string.IsNullOrWhiteSpace(trade.Multisig) ? _tableStorage.InsertAsync(ClientTradeEntity.ByMultisig.Create(trade)) : Task.CompletedTask;
                 var insertbyDtTask = _tableStorage.InsertAsync(ClientTradeEntity.ByDt.Create(trade));
+                var insertByOrderId = trade.IsLimitOrderResult ? _tableStorage.InsertAsync(ClientTradeEntity.ByOrder.Create(trade)) : Task.CompletedTask;
 
                 await insertByClientIdTask;
                 await insertbyMultisigTask;
                 await insertbyDtTask;
+                await insertByOrderId;
 
-                inserted.Add(byMultisig);
+                inserted.Add(byClientId);
             }
 
             return inserted.ToArray();
@@ -221,6 +248,19 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
                 entity.State = TransactionStates.SettledOnchain;
                 return entity;
             });
+
+            if (clientIdRecord.IsLimitOrderResult)
+            {
+                var orderPartition = ClientTradeEntity.ByOrder.GeneratePartitionKey(clientIdRecord.LimitOrderId);
+                var orderRowKey = ClientTradeEntity.ByOrder.GenerateRowKey(recordId);
+
+                await _tableStorage.MergeAsync(orderPartition, orderRowKey, entity =>
+                {
+                    entity.BlockChainHash = hash;
+                    entity.State = TransactionStates.SettledOnchain;
+                    return entity;
+                });
+            }
         }
 
         public async Task SetDetectionTimeAndConfirmations(string clientId, string recordId, DateTime detectTime,
@@ -304,11 +344,29 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
 
             var clientIdRecord = await _tableStorage.GetDataAsync(partitionKey, rowKey);
 
+            if (clientIdRecord == null)
+                return;
+
             var multisigPartitionKey = ClientTradeEntity.ByMultisig.GeneratePartitionKey(clientIdRecord.Multisig);
             var multisigRowKey = ClientTradeEntity.ByMultisig.GenerateRowKey(id);
 
             var dtPartitionKey = ClientTradeEntity.ByDt.GeneratePartitionKey();
             var dtRowKey = ClientTradeEntity.ByDt.GenerateRowKey(id);
+
+            var byOrderTask = Task.CompletedTask;
+            if (clientIdRecord.IsLimitOrderResult)
+            {
+                var orderPartition = ClientTradeEntity.ByOrder.GeneratePartitionKey(clientIdRecord.LimitOrderId);
+                var orderRowKey = ClientTradeEntity.ByOrder.GenerateRowKey(id);
+                byOrderTask = _tableStorage.MergeAsync(orderPartition, orderRowKey, entity =>
+                {
+                    if (offchain)
+                        entity.State = TransactionStates.SettledOffchain;
+                    else
+                        entity.IsSettled = true;
+                    return entity;
+                });
+            }
 
 
             await Task.WhenAll(
@@ -335,7 +393,8 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
                     else
                         entity.IsSettled = true;
                     return entity;
-                })
+                }),
+                byOrderTask
             );
         }
 
@@ -360,6 +419,11 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.CashOperations
             }
 
             return result;
+        }
+
+        public async Task<IEnumerable<IClientTrade>> GetByOrderAsync(string orderId)
+        {
+            return await _tableStorage.GetDataAsync(ClientTradeEntity.ByOrder.GeneratePartitionKey(orderId));
         }
 
         public Task ScanByDtAsync(Func<IEnumerable<IClientTrade>, Task> chunk, DateTime @from, DateTime to)

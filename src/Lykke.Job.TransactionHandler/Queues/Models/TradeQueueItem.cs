@@ -118,10 +118,15 @@ namespace Lykke.Job.TransactionHandler.Queues.Models
             string btcTransactionId, IWalletCredentials walletCredentialsMarket, IWalletCredentials walletCredentialsLimit,
             bool isMarketClient, double marketVolume, double limitVolume)
         {
-            var clientId = isMarketClient ? walletCredentialsMarket.ClientId : walletCredentialsLimit.ClientId;
+            var clientId = isMarketClient ? walletCredentialsMarket?.ClientId : walletCredentialsLimit?.ClientId;
 
-            var mutlisig = isMarketClient ? walletCredentialsMarket.MultiSig : walletCredentialsLimit.MultiSig;
-            var fromMultisig = isMarketClient ? walletCredentialsLimit.MultiSig : walletCredentialsMarket.MultiSig;
+            if (!isMarketClient && string.IsNullOrWhiteSpace(clientId))
+                return new IClientTrade[0];
+
+            clientId = clientId ?? marketOrder.ClientId;
+
+            var mutlisig = isMarketClient ? walletCredentialsMarket?.MultiSig : walletCredentialsLimit?.MultiSig;
+            var fromMultisig = isMarketClient ? walletCredentialsLimit?.MultiSig : walletCredentialsMarket?.MultiSig;
 
             var marketAssetRecord = CreateCommonPartForTradeRecord(trade, marketOrder, btcTransactionId);
             var limitAssetRecord = CreateCommonPartForTradeRecord(trade, marketOrder, btcTransactionId);
@@ -175,7 +180,6 @@ namespace Lykke.Job.TransactionHandler.Queues.Models
             var result = new List<IClientTrade>();
 
             result.AddRange(CreateTradeRecordsForClientWithVolumes(trade, item.Order, item.Order.ExternalId, walletCredentialsMarket, walletCredentialsLimit, true, marketVolume, limitVolume));
-            result.AddRange(CreateTradeRecordsForClientWithVolumes(trade, item.Order, item.Order.ExternalId, walletCredentialsMarket, walletCredentialsLimit, false, marketVolume, limitVolume));
 
             foreach (var clientTrade in result)
             {
