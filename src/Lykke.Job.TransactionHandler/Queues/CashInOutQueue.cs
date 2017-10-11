@@ -16,6 +16,7 @@ using Lykke.Job.TransactionHandler.Queues.Models;
 using Lykke.Job.TransactionHandler.Services;
 using Lykke.RabbitMqBroker;
 using Lykke.RabbitMqBroker.Subscriber;
+using Lykke.Job.TransactionHandler.Services;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.Assets.Client.Models;
 using Lykke.Service.OperationsRepository.Client.Abstractions.CashOperations;

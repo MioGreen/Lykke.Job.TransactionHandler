@@ -210,6 +210,10 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.RegisterType<PersonalDataService>()
                 .As<IPersonalDataService>()
                 .WithParameter(TypedParameter.From(_settings.CurrentValue.TransactionHandlerJob.PersonalDataServiceSettings));
+
+            builder.RegisterType<PersonalDataService>()
+                .As<IPersonalDataService>()
+                .WithParameter(TypedParameter.From(_settings.CurrentValue.TransactionHandlerJob.PersonalDataServiceSettings));
         }
 
         private void BindRepositories(ContainerBuilder builder)

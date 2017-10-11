@@ -16,8 +16,6 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.Clients
         /// If true, than this account is used for IOS review and may have some exceptional requirements
         /// </summary>
         bool IsReviewAccount { get; }
-
-        bool IsTrusted { get; }
     }
 
     public class ClientAccount : IClientAccount

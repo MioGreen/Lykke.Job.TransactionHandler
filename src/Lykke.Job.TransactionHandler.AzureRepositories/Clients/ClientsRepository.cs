@@ -81,7 +81,6 @@ namespace Lykke.Job.TransactionHandler.AzureRepositories.Clients
         public string Salt { get; set; }
         public string Hash { get; set; }
         public string PartnerId { get; set; }
-
         public bool IsReviewAccount { get; set; }
         public bool IsTrusted { get; set; }
 
