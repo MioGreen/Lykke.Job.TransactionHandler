@@ -21,6 +21,7 @@ using Lykke.RabbitMqBroker;
 using Lykke.RabbitMqBroker.Subscriber;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.Assets.Client.Models;
+using Lykke.Service.ClientAccount.Client.AutorestClient;
 using Lykke.Service.OperationsRepository.Client.Abstractions.CashOperations;
 using ClientTrade = Lykke.Service.OperationsRepository.AutorestClient.Models.ClientTrade;
 
@@ -52,7 +53,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly ICachedAssetsService _assetsService;
         private readonly IMapper _mapper;
         private readonly IBitcoinTransactionService _bitcoinTransactionService;
-        private readonly IClientAccountsRepository _clientAccountsRepository;
+        private readonly IClientAccountService _clientAccountService;
 
         private readonly AppSettings.RabbitMqSettings _rabbitConfig;
         private RabbitMqSubscriber<TradeQueueItem> _subscriber;
@@ -74,7 +75,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             AppSettings.EthereumSettings settings,
             IEthClientEventLogs ethClientEventLogs,
 			IBitcoinTransactionService bitcoinTransactionService,
-            IClientAccountsRepository clientAccountsRepository,
+            IClientAccountService clientAccountService,
             IMapper mapper)
         {
             _rabbitConfig = config;
@@ -92,10 +93,9 @@ namespace Lykke.Job.TransactionHandler.Queues
             _settings = settings;
             _ethClientEventLogs = ethClientEventLogs;
             _bitcoinTransactionService = bitcoinTransactionService;
-            _clientAccountsRepository = clientAccountsRepository;
+            _clientAccountService = clientAccountService;
             _log = log;
             _mapper = mapper;
-            _clientAccountsRepository = clientAccountsRepository;
         }
 
         public void Start()
@@ -151,7 +151,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             try
             {
                 // for trusted clients only write history (finally block)
-                if (await _clientAccountsRepository.IsTrusted(queueMessage.Order.ClientId))
+                if ((await _clientAccountService.IsTrustedAsync(queueMessage.Order.ClientId)).Value)
                     return true;
 
                 // get operations only by market order user (limit user will be processed in limit trade queue)

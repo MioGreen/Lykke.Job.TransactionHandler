@@ -24,6 +24,7 @@ using Lykke.RabbitMqBroker;
 using Lykke.RabbitMqBroker.Subscriber;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.Assets.Client.Models;
+using Lykke.Service.ClientAccount.Client.AutorestClient;
 using Lykke.Service.OperationsRepository.Client.Abstractions.CashOperations;
 using ClientTrade = Lykke.Service.OperationsRepository.AutorestClient.Models.ClientTrade;
 
@@ -43,7 +44,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IOffchainRequestService _offchainRequestService;
         private readonly IOffchainOrdersRepository _offchainOrdersRepository;
         private readonly IClientSettingsRepository _clientSettingsRepository;
-        private readonly IClientAccountsRepository _clientAccountsRepository;
+        private readonly IClientAccountService _clientAccountService;
         private readonly IAppNotifications _appNotifications;
         private readonly IEthereumTransactionRequestRepository _ethereumTransactionRequestRepository;
         private readonly ISrvEthereumHelper _srvEthereumHelper;
@@ -76,7 +77,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             ILimitOrdersRepository limitOrdersRepository,
             ITradeOperationsRepositoryClient tradeOperationsRepositoryClient,
             ILimitTradeEventsRepository limitTradeEventsRepository, IClientSettingsRepository clientSettingsRepository,
-            IAppNotifications appNotifications, IClientAccountsRepository clientAccountsRepository,
+            IAppNotifications appNotifications, IClientAccountService clientAccountService, 
             IOffchainOrdersRepository offchainOrdersRepository, IClientCacheRepository clientCacheRepository, IBitcoinTransactionService bitcoinTransactionService, IMapper mapper)
         {
             _rabbitConfig = config;
@@ -94,7 +95,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             _limitTradeEventsRepository = limitTradeEventsRepository;
             _clientSettingsRepository = clientSettingsRepository;
             _appNotifications = appNotifications;
-            _clientAccountsRepository = clientAccountsRepository;
+            _clientAccountService = clientAccountService;
             _offchainOrdersRepository = offchainOrdersRepository;
             _clientCacheRepository = clientCacheRepository;
             _mapper = mapper;
@@ -145,7 +146,7 @@ namespace Lykke.Job.TransactionHandler.Queues
                     var meOrder = limitOrderWithTrades.Order;
 
                     if (!trusted.ContainsKey(meOrder.ClientId))
-                        trusted[meOrder.ClientId] = await _clientAccountsRepository.IsTrusted(meOrder.ClientId);
+                        trusted[meOrder.ClientId] = (await _clientAccountService.IsTrustedAsync(meOrder.ClientId)).Value;
 
                     var isTrusted = trusted[meOrder.ClientId];
 
@@ -319,7 +320,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             var pushSettings = await _clientSettingsRepository.GetSettings<PushNotificationsSettings>(clientId);
             if (pushSettings.Enabled)
             {
-                var clientAcc = await _clientAccountsRepository.GetByIdAsync(clientId);
+                var clientAcc = await _clientAccountService.GetByIdAsync(clientId) as Lykke.Service.ClientAccount.Client.AutorestClient.Models.ClientResponseModel;
 
                 await _appNotifications.SendLimitOrderNotification(new[] { clientAcc.NotificationsId }, msg, type, status);
             }

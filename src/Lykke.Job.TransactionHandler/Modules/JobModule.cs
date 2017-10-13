@@ -244,11 +244,7 @@ namespace Lykke.Job.TransactionHandler.Modules
 
             builder.RegisterInstance<IChronoBankCommandProducer>(new SrvChronoBankCommandProducer(
                 AzureQueueExt.Create(_dbSettings.ConnectionString(x => x.ChronoBankSrvConnString), "chronobank-out")));
-
-            builder.RegisterInstance<IClientAccountsRepository>(new ClientsRepository(
-                AzureTableStorage<ClientAccountEntity>.Create(
-                    _dbSettings.ConnectionString(x => x.ClientPersonalInfoConnString), "Traders", _log)));
-
+            
             builder.RegisterInstance<IClientSettingsRepository>(new ClientSettingsRepository(
                 AzureTableStorage<ClientSettingsEntity>.Create(
                     _dbSettings.ConnectionString(x => x.ClientPersonalInfoConnString), "TraderSettings", _log)));

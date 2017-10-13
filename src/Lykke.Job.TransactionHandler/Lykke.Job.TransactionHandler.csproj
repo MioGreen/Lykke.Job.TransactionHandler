@@ -26,6 +26,7 @@
     <PackageReference Include="Lykke.MatchingEngineConnector" Version="1.0.14" />
     <PackageReference Include="Lykke.MatchingEngineConnector.Abstractions" Version="1.0.14" />
     <PackageReference Include="Lykke.Service.Assets.Client" Version="1.0.17" />
+    <PackageReference Include="Lykke.Service.ClientAccount.Client" Version="1.0.24-beta" />
     <PackageReference Include="Lykke.Service.ExchangeOperations.Client" Version="1.0.9" />
     <PackageReference Include="AutoMapper" Version="6.1.1" />
     <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="2.0.1" />
