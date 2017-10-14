@@ -17,13 +17,13 @@ namespace Lykke.Job.TransactionHandler.Services
         public MatchingEngineSettings MatchingEngineClient { get; set; }
         public NotificationsSettings AppNotifications { get; set; }
         public RabbitMqSettings RabbitMq { get; set; }
+        public PersonalDataServiceSettings PersonalDataServiceSettings { get; set; }
 
         public class TransactionHandlerSettings
         {
             public DbSettings Db { get; set; }
             public AssetsCacheSettings AssetsCache { get; set; }
             public string ExchangeOperationsServiceUrl { get; set; }
-            public PersonalDataServiceSettings PersonalDataServiceSettings { get; set; }
         }
 
         public class DbSettings
