@@ -66,6 +66,7 @@ using Lykke.Job.TransactionHandler.Services.Quanta;
 using Lykke.Job.TransactionHandler.Services.SolarCoin;
 using Lykke.MatchingEngine.Connector.Services;
 using Lykke.Service.Assets.Client.Custom;
+using Lykke.Service.ClientAccount.Client.AutorestClient;
 using Lykke.Service.ExchangeOperations.Client;
 using Lykke.Service.OperationsRepository.Client;
 using Lykke.Service.OperationsHistory.HistoryWriter.Abstractions;
@@ -210,6 +211,11 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.RegisterType<PersonalDataService>()
                 .As<IPersonalDataService>()
                 .WithParameter(TypedParameter.From(_settings.CurrentValue.PersonalDataServiceSettings));
+                
+            builder.RegisterType<ClientAccountService>()
+                .As<IClientAccountService>()
+                .WithParameter("baseUri", new Uri(_settings.CurrentValue.ClientAccountClient.ServiceUrl));
+
         }
 
         private void BindRepositories(ContainerBuilder builder)
