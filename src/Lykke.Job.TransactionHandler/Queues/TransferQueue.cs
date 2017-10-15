@@ -16,6 +16,7 @@ using TransferEventClient = Lykke.Service.OperationsRepository.AutorestClient.Mo
 using Lykke.Job.TransactionHandler.Services;
 using Lykke.RabbitMqBroker;
 using Lykke.RabbitMqBroker.Subscriber;
+using Lykke.Service.ClientAccount.Client.AutorestClient;
 
 namespace Lykke.Job.TransactionHandler.Queues
 {
@@ -32,7 +33,7 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly IClientSettingsRepository _clientSettingsRepository;
         private readonly IMapper _mapper;
         private readonly IBitcoinTransactionService _bitcoinTransactionService;
-        private readonly IClientAccountsRepository _clientAccountsRepository;
+        private readonly IClientAccountService _clientAccountService;
 
         private readonly AppSettings.RabbitMqSettings _rabbitConfig;
         private RabbitMqSubscriber<TransferQueueMessage> _subscriber;
@@ -45,7 +46,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             IOffchainRequestService offchainRequestService,
             IClientSettingsRepository clientSettingsRepository,
             IBitcoinTransactionService bitcoinTransactionService,
-            IClientAccountsRepository clientAccountsRepository,
+            IClientAccountService clientAccountService,
             IMapper mapper)
         {
             _rabbitConfig = config;
@@ -58,7 +59,7 @@ namespace Lykke.Job.TransactionHandler.Queues
             _clientSettingsRepository = clientSettingsRepository;
             _mapper = mapper;
             _bitcoinTransactionService = bitcoinTransactionService;
-            _clientAccountsRepository = clientAccountsRepository;
+            _clientAccountService = clientAccountService;
         }
 
         public void Start()
@@ -161,7 +162,7 @@ namespace Lykke.Job.TransactionHandler.Queues
 
             if (await _clientSettingsRepository.IsOffchainClient(queueMessage.ToClientid))
             {
-                if (!await _clientAccountsRepository.IsTrusted(queueMessage.ToClientid))
+                if (!(await _clientAccountService.IsTrustedAsync(queueMessage.ToClientid)).Value)
                 {
                     try
                     {

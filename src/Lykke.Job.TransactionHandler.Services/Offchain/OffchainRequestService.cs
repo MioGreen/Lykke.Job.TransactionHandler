@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Threading.Tasks;
 using Lykke.Job.TransactionHandler.Core;
-using Lykke.Job.TransactionHandler.Core.Domain.Clients;
 using Lykke.Job.TransactionHandler.Core.Domain.Clients.Core.Clients;
 using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
 using Lykke.Job.TransactionHandler.Core.Services.AppNotifications;
 using Lykke.Job.TransactionHandler.Core.Services.Offchain;
+using Lykke.Service.ClientAccount.Client.AutorestClient;
 using Lykke.Service.PendingActions.AutorestClient.Models;
 using Lykke.Service.PendingActions.Client;
 
@@ -16,19 +16,19 @@ namespace Lykke.Job.TransactionHandler.Services.Offchain
         private readonly IOffchainRequestRepository _offchainRequestRepository;
         private readonly IOffchainTransferRepository _offchainTransferRepository;
         private readonly IClientSettingsRepository _clientSettingsRepository;
-        private readonly IClientAccountsRepository _clientAccountsRepository;
+        private readonly IClientAccountService _clientAccountService;
         private readonly IAppNotifications _appNotifications;
         private readonly IPendingActionsClient _pendingActionsClient;
 
         public OffchainRequestService(IOffchainRequestRepository offchainRequestRepository,
             IOffchainTransferRepository offchainTransferRepository, IClientSettingsRepository clientSettingsRepository,
-            IClientAccountsRepository clientAccountsRepository, IAppNotifications appNotifications,
+            IClientAccountService clientAccountService, IAppNotifications appNotifications,
             IPendingActionsClient pendingActionsClient)
         {
             _offchainRequestRepository = offchainRequestRepository;
             _offchainTransferRepository = offchainTransferRepository;
             _clientSettingsRepository = clientSettingsRepository;
-            _clientAccountsRepository = clientAccountsRepository;
+            _clientAccountService = clientAccountService;
             _appNotifications = appNotifications;
             _pendingActionsClient = pendingActionsClient;
         }
@@ -47,7 +47,7 @@ namespace Lykke.Job.TransactionHandler.Services.Offchain
             var pushSettings = await _clientSettingsRepository.GetSettings<PushNotificationsSettings>(clientId);
             if (pushSettings.Enabled)
             {
-                var clientAcc = await _clientAccountsRepository.GetByIdAsync(clientId);
+                var clientAcc = await _clientAccountService.GetByIdAsync(clientId) as Lykke.Service.ClientAccount.Client.AutorestClient.Models.ClientResponseModel;
 
                 await _appNotifications.SendDataNotificationToAllDevicesAsync(new[] { clientAcc.NotificationsId }, NotificationType.OffchainRequest, "Wallet");
             }
