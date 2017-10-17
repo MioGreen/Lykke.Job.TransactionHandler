@@ -35,5 +35,18 @@
     public enum ErrorCode
     {
         Exception = 0,
+        ContractPoolEmpty = 1,
+        MissingRequiredParams = 2,
+        WrongParams = 3,
+        EntityAlreadyExists = 4,
+        WrongSign = 5,
+        OperationWithIdAlreadyExists = 6,
+
+        #region PrivateWallets
+
+        NotEnoughFunds = 100,
+        TransactionExists = 101,
+
+        #endregion
     }
 }
