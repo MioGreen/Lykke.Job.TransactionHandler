@@ -71,6 +71,8 @@ using Lykke.Service.ExchangeOperations.Client;
 using Lykke.Service.ExchangeOperations.Contracts;
 using Lykke.Service.OperationsHistory.HistoryWriter.Abstractions;
 using Lykke.Service.OperationsHistory.HistoryWriter.Implementation;
+using Lykke.Service.PersonalData.Client;
+using Lykke.Service.PersonalData.Contract;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Lykke.Job.TransactionHandler.Modules
@@ -199,6 +201,10 @@ namespace Lykke.Job.TransactionHandler.Modules
 
             var historyWriter = new HistoryWriter(_dbSettings.HistoryLogsConnString, _log);
             builder.RegisterInstance(historyWriter).As<IHistoryWriter>();
+
+            builder.RegisterType<PersonalDataService>()
+                .As<IPersonalDataService>()
+                .WithParameter(TypedParameter.From(_settings.PersonalDataServiceSettings));
         }
 
         private void BindRepositories(ContainerBuilder builder)
@@ -263,10 +269,6 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.RegisterInstance<IClientCacheRepository>(
                 new ClientCacheRepository(
                     new AzureTableStorage<ClientCacheEntity>(_dbSettings.ClientPersonalInfoConnString, "ClientCache", _log)));
-
-            builder.RegisterInstance<IPersonalDataRepository>(
-                new PersonalDataRepository(
-                    new AzureTableStorage<PersonalDataEntity>(_dbSettings.ClientPersonalInfoConnString, "PersonalData", _log)));
 
             builder.RegisterInstance<IEthClientEventLogs>(
                 new EthClientEventLogs(
