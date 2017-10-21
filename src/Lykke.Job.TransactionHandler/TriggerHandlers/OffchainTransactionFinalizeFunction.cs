@@ -19,7 +19,6 @@ using Lykke.Job.TransactionHandler.Core.Services.Messages.Email;
 using Lykke.Job.TransactionHandler.Core.Services.Offchain;
 using Lykke.Job.TransactionHandler.Core.Services.Quanta;
 using Lykke.Job.TransactionHandler.Core.Services.SolarCoin;
-using Lykke.Job.TransactionHandler.Core.Services.TrustedWallet;
 using Lykke.Job.TransactionHandler.Resources;
 using Lykke.Job.TransactionHandler.Services.Notifications;
 using Lykke.JobTriggers.Triggers.Attributes;
@@ -63,7 +62,6 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
         private readonly IChronoBankService _chronoBankService;
         private readonly ISrvSolarCoinHelper _srvSolarCoinHelper;
         private readonly IQuantaService _quantaService;
-        private readonly ITrustedWalletService _trustedWalletService;
 
         public OffchainTransactionFinalizeFunction(
             IBitCoinTransactionsRepository bitCoinTransactionsRepository,
@@ -91,8 +89,7 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             IPaymentTransactionsRepository paymentTransactionsRepository,
             IAppNotifications appNotifications,
             ICachedAssetsService assetsService, 
-            IBitcoinTransactionService bitcoinTransactionService, 
-            ITrustedWalletService trustedWalletService)
+            IBitcoinTransactionService bitcoinTransactionService)
         {
             _bitCoinTransactionsRepository = bitCoinTransactionsRepository;
             _log = log;
@@ -121,7 +118,6 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
             _appNotifications = appNotifications;
             _assetsService = assetsService;
             _bitcoinTransactionService = bitcoinTransactionService;
-            _trustedWalletService = trustedWalletService ?? throw new ArgumentNullException(nameof(trustedWalletService));
         }
 
         [QueueTrigger("offchain-finalization", notify: true, maxDequeueCount: 1, maxPollingIntervalMs: 100)]
@@ -232,20 +228,19 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
 
         private async Task FinalizeTransferToTrustedWallet(IBitcoinTransaction transaction, TransferContextData context, IOffchainTransfer transfer)
         {
-            var sourceTransferContext = context.Transfers.FirstOrDefault(x => x.ClientId == transfer.ClientId);
+            var destTransferContext = context.Transfers.First(x => x.ClientId != transfer.ClientId);
 
-            var action = sourceTransferContext?.Actions?.UpdateTrustedWalletBalance;
-            if (action == null)
-                throw new Exception();
-
-            await _exchangeOperationsService.FinishTransferAsync(
+            var exchangeOperationResult = await _exchangeOperationsService.FinishTransferAsync(
                 transfer.Id,
                 transfer.ClientId,
-                action.WalletId,
+                destTransferContext.ClientId,
                 (double)transfer.Amount,
                 transfer.AssetId);
 
-            await _trustedWalletService.SendCashInRequest(transfer.ClientId, action.WalletId, action.Asset, action.Amount);
+            if (!exchangeOperationResult.IsOk())
+            {
+                // todo: ??
+            }
 
             await _paymentTransactionsRepository.SetStatus(transaction.TransactionId, PaymentStatus.NotifyProcessed);
         }
