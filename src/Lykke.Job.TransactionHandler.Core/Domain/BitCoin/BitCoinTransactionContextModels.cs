@@ -192,6 +192,11 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.BitCoin
             /// For margin wallet deposit
             /// </summary>
             public UpdateMarginBalance UpdateMarginBalance { get; set; }
+
+            /// <summary>
+            /// If set, then transfer to hot wallet will be genereated first
+            /// </summary>
+            public bool TrustedWalletTransfer { get; set; }
         }
 
         public class ConvertedOkEmailAction
