@@ -194,6 +194,11 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.BitCoin
             /// For margin wallet deposit
             /// </summary>
             public UpdateMarginBalance UpdateMarginBalance { get; set; }
+
+            /// <summary>
+            /// For trusted wallet deposit
+            /// </summary>
+            public UpdateTrustedWalletBalance UpdateTrustedWalletBalance { get; set; }
         }
 
         public class ConvertedOkEmailAction
@@ -259,6 +264,20 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.BitCoin
             public UpdateMarginBalance(string account, double amount)
             {
                 AccountId = account;
+                Amount = amount;
+            }
+        }
+        
+        public class UpdateTrustedWalletBalance
+        {
+            public string WalletId { get; set; }
+            public string Asset { get; set; }
+            public decimal Amount { get; set; }
+
+            public UpdateTrustedWalletBalance(string walletId, string asset, decimal amount)
+            {
+                WalletId = walletId;
+                Asset = asset;
                 Amount = amount;
             }
         }

@@ -23,6 +23,7 @@ using Lykke.Job.TransactionHandler.AzureRepositories.Offchain;
 using Lykke.Job.TransactionHandler.AzureRepositories.PaymentSystems;
 using Lykke.Job.TransactionHandler.AzureRepositories.Quanta;
 using Lykke.Job.TransactionHandler.AzureRepositories.SolarCoin;
+using Lykke.Job.TransactionHandler.Core;
 using Lykke.Job.TransactionHandler.Core.Domain.Assets;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.Blockchain;
@@ -50,6 +51,7 @@ using Lykke.Job.TransactionHandler.Core.Services.Messages.Email.Sender;
 using Lykke.Job.TransactionHandler.Core.Services.Offchain;
 using Lykke.Job.TransactionHandler.Core.Services.Quanta;
 using Lykke.Job.TransactionHandler.Core.Services.SolarCoin;
+using Lykke.Job.TransactionHandler.Core.Services.TrustedWallet;
 using Lykke.Job.TransactionHandler.Queues;
 using Lykke.Job.TransactionHandler.Services;
 using Lykke.Job.TransactionHandler.Services.BitCoin;
@@ -64,6 +66,7 @@ using Lykke.Job.TransactionHandler.Services.Notifications;
 using Lykke.Job.TransactionHandler.Services.Offchain;
 using Lykke.Job.TransactionHandler.Services.Quanta;
 using Lykke.Job.TransactionHandler.Services.SolarCoin;
+using Lykke.Job.TransactionHandler.Services.TrustedWallet;
 using Lykke.MatchingEngine.Connector.Services;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.ClientAccount.Client.AutorestClient;
@@ -215,6 +218,8 @@ namespace Lykke.Job.TransactionHandler.Modules
             builder.RegisterType<ClientAccountService>()
                 .As<IClientAccountService>()
                 .WithParameter("baseUri", new Uri(_settings.CurrentValue.ClientAccountClient.ServiceUrl));
+                
+            builder.RegisterType<TrustedWalletService>().As<ITrustedWalletService>().SingleInstance();
         }
 
         private void BindRepositories(ContainerBuilder builder)
