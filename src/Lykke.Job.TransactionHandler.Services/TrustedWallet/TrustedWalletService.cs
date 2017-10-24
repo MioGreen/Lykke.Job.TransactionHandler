@@ -18,15 +18,15 @@ namespace Lykke.Job.TransactionHandler.Services.TrustedWallet
             _matchingEngineClient = matchingEngineClient ?? throw new ArgumentNullException(nameof(matchingEngineClient));
         }
 
-        public async Task SendCashInRequest(string clientId, string walletId, string assetId, decimal amount)
+        public async Task Deposit(string walletId, string assetId, decimal amount)
         {
             var id = GetNextRequestId();
-            var result = await _matchingEngineClient.TransferAsync(id, clientId, walletId, assetId, (double)amount);
+            var result = await _matchingEngineClient.CashInOutAsync(id, walletId, assetId, (double)amount);
 
             if (result == null || result.Status != MatchingEngine.Connector.Abstractions.Models.MeStatusCodes.Ok)
             {
                 await
-                    _log.WriteWarningAsync(nameof(TrustedWalletService), nameof(SendCashInRequest), "ME error",
+                    _log.WriteWarningAsync(nameof(TrustedWalletService), nameof(Deposit), "ME error",
                         result.ToJson());
             }
         }

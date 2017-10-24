@@ -232,20 +232,28 @@ namespace Lykke.Job.TransactionHandler.TriggerHandlers
 
         private async Task FinalizeTransferToTrustedWallet(IBitcoinTransaction transaction, TransferContextData context, IOffchainTransfer transfer)
         {
-            var sourceTransferContext = context.Transfers.FirstOrDefault(x => x.ClientId == transfer.ClientId);
+            var sourceTransferContext = context.Transfers.First(x => x.ClientId == transfer.ClientId);
+            var destTransferContext = context.Transfers.First(x => x.ClientId != transfer.ClientId);
 
             var action = sourceTransferContext?.Actions?.UpdateTrustedWalletBalance;
             if (action == null)
                 throw new Exception();
 
-            await _exchangeOperationsService.FinishTransferAsync(
+            var exchangeOperationResult = await _exchangeOperationsService.FinishTransferAsync(
                 transfer.Id,
-                transfer.ClientId,
-                action.WalletId,
+                sourceTransferContext.ClientId, // client id
+                destTransferContext.ClientId,   // hot wallet
                 (double)transfer.Amount,
                 transfer.AssetId);
 
-            await _trustedWalletService.SendCashInRequest(transfer.ClientId, action.WalletId, action.Asset, action.Amount);
+            if (!exchangeOperationResult.IsOk())
+            {
+                await _log.WriteWarningAsync(nameof(OffchainTransactionFinalizeFunction),
+                    nameof(FinalizeTransferToTrustedWallet), exchangeOperationResult.ToJson(), "ME operation failed");
+                await _srvSlackNotifications.SendNotification(ChannelTypes.Errors, $"Transfer failed in ME, client: {transfer.ClientId}, transfer: {transaction.TransactionId}, ME code result: {exchangeOperationResult.Code}");
+            }
+
+            await _trustedWalletService.Deposit(action.WalletId, action.Asset, action.Amount);
 
             await _paymentTransactionsRepository.SetStatus(transaction.TransactionId, PaymentStatus.NotifyProcessed);
         }
