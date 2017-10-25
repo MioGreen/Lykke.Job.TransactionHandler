@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
 using Common;
@@ -7,7 +6,6 @@ using Common.Log;
 using Lykke.Job.TransactionHandler.Core.Domain.BitCoin;
 using Lykke.Job.TransactionHandler.Core.Domain.Blockchain;
 using Lykke.Job.TransactionHandler.Core.Domain.CashOperations;
-using Lykke.Job.TransactionHandler.Core.Domain.Clients;
 using Lykke.Job.TransactionHandler.Core.Domain.Clients.Core.Clients;
 using Lykke.Job.TransactionHandler.Core.Domain.Ethereum;
 using Lykke.Job.TransactionHandler.Core.Domain.Offchain;
@@ -20,13 +18,11 @@ using TransferEventClient = Lykke.Service.OperationsRepository.AutorestClient.Mo
 using Lykke.Job.TransactionHandler.Services;
 using Lykke.RabbitMqBroker;
 using Lykke.RabbitMqBroker.Subscriber;
-using Lykke.Job.TransactionHandler.Services;
 using Lykke.Job.TransactionHandler.Services.Notifications;
 using Lykke.MatchingEngine.Connector.Abstractions.Models;
 using Lykke.MatchingEngine.Connector.Abstractions.Services;
 using Lykke.Service.Assets.Client.Custom;
 using Lykke.Service.ExchangeOperations.Contracts;
-using Newtonsoft.Json;
 using Lykke.Service.ClientAccount.Client.AutorestClient;
 
 namespace Lykke.Job.TransactionHandler.Queues
