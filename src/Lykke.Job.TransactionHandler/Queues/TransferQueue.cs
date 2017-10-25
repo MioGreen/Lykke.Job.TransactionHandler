@@ -45,7 +45,6 @@ namespace Lykke.Job.TransactionHandler.Queues
         private readonly ICachedAssetsService _assetsService;
         private readonly IBcnClientCredentialsRepository _bcnClientCredentialsRepository;
         private readonly AppSettings.EthereumSettings _settings;
-        private readonly IMatchingEngineClient _matchingEngineClient;
         private readonly SrvSlackNotifications _srvSlackNotifications;
         private readonly IExchangeOperationsService _exchangeOperationsService;
 
@@ -59,7 +58,10 @@ namespace Lykke.Job.TransactionHandler.Queues
             IBitCoinTransactionsRepository bitCoinTransactionsRepository,
             IOffchainRequestService offchainRequestService, IClientSettingsRepository clientSettingsRepository,
             IBitcoinTransactionService bitcoinTransactionService, IClientAccountsRepository clientAccountsRepository,
-            IEthereumTransactionRequestRepository ethereumTransactionRequestRepository, ISrvEthereumHelper srvEthereumHelper, ICachedAssetsService assetsService, IBcnClientCredentialsRepository bcnClientCredentialsRepository, AppSettings.EthereumSettings settings, IMatchingEngineClient matchingEngineClient, SrvSlackNotifications srvSlackNotifications, IExchangeOperationsService exchangeOperationsService)
+            IEthereumTransactionRequestRepository ethereumTransactionRequestRepository,
+            ISrvEthereumHelper srvEthereumHelper, ICachedAssetsService assetsService,
+            IBcnClientCredentialsRepository bcnClientCredentialsRepository, AppSettings.EthereumSettings settings,
+            SrvSlackNotifications srvSlackNotifications, IExchangeOperationsService exchangeOperationsService)
         {
             _rabbitConfig = config;
             _log = log;
@@ -76,7 +78,6 @@ namespace Lykke.Job.TransactionHandler.Queues
             _assetsService = assetsService;
             _bcnClientCredentialsRepository = bcnClientCredentialsRepository;
             _settings = settings;
-            _matchingEngineClient = matchingEngineClient;
             _srvSlackNotifications = srvSlackNotifications;
             _exchangeOperationsService = exchangeOperationsService;
         }
