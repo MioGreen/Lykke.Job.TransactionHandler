@@ -127,7 +127,9 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.BitCoin
     {
         Common = 0,
         ToMarginAccount = 1,
-        FromMarginAccount = 2
+        FromMarginAccount = 2,
+        ToTrustedWallet = 3,
+        FromTrustedWallet = 4
     }
 
     public class TransferContextData : BaseContextData
@@ -194,9 +196,9 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.BitCoin
             public UpdateMarginBalance UpdateMarginBalance { get; set; }
 
             /// <summary>
-            /// If set, then transfer to hot wallet will be genereated first
+            /// For trusted wallet deposit
             /// </summary>
-            public bool TrustedWalletTransfer { get; set; }
+            public UpdateTrustedWalletBalance UpdateTrustedWalletBalance { get; set; }
         }
 
         public class ConvertedOkEmailAction
@@ -265,7 +267,20 @@ namespace Lykke.Job.TransactionHandler.Core.Domain.BitCoin
                 Amount = amount;
             }
         }
+        
+        public class UpdateTrustedWalletBalance
+        {
+            public string WalletId { get; set; }
+            public string Asset { get; set; }
+            public decimal Amount { get; set; }
 
+            public UpdateTrustedWalletBalance(string walletId, string asset, decimal amount)
+            {
+                WalletId = walletId;
+                Asset = asset;
+                Amount = amount;
+            }
+        }
         #endregion
     }
 
